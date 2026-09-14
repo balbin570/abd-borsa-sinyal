@@ -28,7 +28,50 @@ def calculate_ema(prices, period):
 
     return ema
 
+def calculate_ema_series(prices, period):
+    if len(prices) < period:
+        return []
 
+    multiplier = 2 / (period + 1)
+
+    ema = sum(prices[:period]) / period
+    ema_values = [ema]
+
+    for price in prices[period:]:
+        ema = (price - ema) * multiplier + ema
+        ema_values.append(ema)
+
+    return ema_values
+
+
+def calculate_macd(prices):
+    ema12_series = calculate_ema_series(prices, 12)
+    ema26_series = calculate_ema_series(prices, 26)
+
+    if len(ema12_series) == 0 or len(ema26_series) == 0:
+        return 0, 0, 0
+
+    ema12_aligned = ema12_series[-len(ema26_series):]
+
+    macd_series = [
+        ema12 - ema26
+        for ema12, ema26 in zip(
+            ema12_aligned,
+            ema26_series
+        )
+    ]
+
+    if len(macd_series) < 9:
+        return 0, 0, 0
+
+    signal_series = calculate_ema_series(macd_series, 9)
+
+    macd = macd_series[-1]
+    signal = signal_series[-1]
+    histogram = macd - signal
+
+    return macd, signal, histogram
+    
 def calculate_rsi(prices, period=14):
     if len(prices) < period + 1:
         return None
@@ -148,7 +191,7 @@ async def analyze_stock(symbol: str):
     rsi14 = calculate_rsi(closes, 14)
 
     # MACD ana çizgisi
-    macd = ema12 - ema26
+    macd, macd_signal, macd_histogram = calculate_macd(closes)
 
     # Son 20 günlük fiyat momentumu
     price_20_days_ago = closes[-21]
@@ -202,9 +245,12 @@ async def analyze_stock(symbol: str):
         reasons.append("Hacim ortalama üzerinde")
 
     # 5 - MACD: 20 puan
-    if macd > 0:
-        score += 20
-        reasons.append("MACD pozitif")
+    if macd > macd_signal and macd_histogram > 0:
+    score += 20
+    reasons.append("MACD sinyal çizgisinin üzerinde")
+elif macd > macd_signal:
+    score += 10
+    reasons.append("MACD pozitif kesişim bölgesinde")
 
     # 6 - 20 günlük momentum: maksimum 15 puan
     if momentum20 >= 5:
@@ -238,6 +284,8 @@ async def analyze_stock(symbol: str):
         "ema50": round(ema50, 2),
         "rsi14": round(rsi14, 2),
         "macd": round(macd, 2),
+        "macd_signal": round(macd_signal, 2),
+        "macd_histogram": round(macd_histogram, 2),
         "momentum20": round(momentum20, 2),
         "volume_ratio": round(volume_ratio, 2),
         "score": score,
