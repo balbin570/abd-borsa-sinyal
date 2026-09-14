@@ -125,6 +125,7 @@ async def analyze_stock(symbol: str):
     if "values" not in data:
         raise HTTPException(status_code=400, detail=data)
 
+    # Verileri eski tarihten yeni tarihe sıralıyoruz
     values = list(reversed(data["values"]))
 
     closes = [float(item["close"]) for item in values]
@@ -136,24 +137,32 @@ async def analyze_stock(symbol: str):
             detail="Yeterli fiyat verisi bulunamadı"
         )
 
-    # Son bar henüz tamamlanmamış olabilir.
-    # Bu yüzden analizde bir önceki tamamlanmış günü kullanıyoruz.
-    closes_completed = closes[:-1]
-    volumes_completed = volumes[:-1]
+    # En son tamamlanmış günlük veriyi kullanıyoruz
+    price = closes[-1]
 
-    price = closes_completed[-1]
+    ema12 = calculate_ema(closes, 12)
+    ema20 = calculate_ema(closes, 20)
+    ema26 = calculate_ema(closes, 26)
+    ema50 = calculate_ema(closes, 50)
 
-    ema20 = calculate_ema(closes_completed, 20)
-    ema50 = calculate_ema(closes_completed, 50)
-    rsi14 = calculate_rsi(closes_completed, 14)
+    rsi14 = calculate_rsi(closes, 14)
 
-    current_volume = volumes_completed[-1]
-    previous_20_volumes = volumes_completed[-21:-1]
+    # MACD ana çizgisi
+    macd = ema12 - ema26
 
-    if len(previous_20_volumes) == 20:
-        avg_volume20 = sum(previous_20_volumes) / 20
-    else:
-        avg_volume20 = 0
+    # Son 20 günlük fiyat momentumu
+    price_20_days_ago = closes[-21]
+
+    momentum20 = (
+        (price - price_20_days_ago)
+        / price_20_days_ago
+    ) * 100
+
+    # Bugünkü hacmi önceki 20 günün ortalamasıyla karşılaştır
+    current_volume = volumes[-1]
+    previous_20_volumes = volumes[-21:-1]
+
+    avg_volume20 = sum(previous_20_volumes) / 20
 
     if avg_volume20 > 0:
         volume_ratio = current_volume / avg_volume20
@@ -163,21 +172,57 @@ async def analyze_stock(symbol: str):
     score = 0
     reasons = []
 
+    # 1 - Fiyat kısa vadeli trendin üzerinde: 15 puan
     if price > ema20:
-        score += 25
+        score += 15
         reasons.append("Fiyat EMA20 üzerinde")
 
+    # 2 - Orta vadeli trend pozitif: 20 puan
     if ema20 > ema50:
-        score += 25
+        score += 20
         reasons.append("EMA20 EMA50 üzerinde")
 
-    if 55 <= rsi14 <= 75:
-        score += 25
+    # 3 - RSI: maksimum 15 puan
+    if 55 <= rsi14 <= 70:
+        score += 15
         reasons.append("RSI güçlü bölgede")
+    elif 50 <= rsi14 < 55:
+        score += 8
+        reasons.append("RSI pozitif bölgede")
+    elif 70 < rsi14 <= 75:
+        score += 8
+        reasons.append("RSI güçlü ancak yüksek")
 
+    # 4 - Hacim: maksimum 15 puan
     if volume_ratio >= 1.20:
-        score += 25
-        reasons.append("Hacim 20 günlük ortalamanın üzerinde")
+        score += 15
+        reasons.append("Hacim güçlü")
+    elif volume_ratio >= 1.00:
+        score += 8
+        reasons.append("Hacim ortalama üzerinde")
+
+    # 5 - MACD: 20 puan
+    if macd > 0:
+        score += 20
+        reasons.append("MACD pozitif")
+
+    # 6 - 20 günlük momentum: maksimum 15 puan
+    if momentum20 >= 5:
+        score += 15
+        reasons.append("20 günlük momentum güçlü")
+    elif momentum20 > 0:
+        score += 8
+        reasons.append("20 günlük momentum pozitif")
+
+    # Teknik risk değerlendirmesi
+    ema20_distance = ((price - ema20) / ema20) * 100
+
+    if rsi14 > 75 or ema20_distance > 12:
+        risk = "YUKSEK"
+    elif rsi14 > 70 or ema20_distance > 8:
+        risk = "ORTA"
+    else:
+        risk = "DUSUK"
 
     if score >= 75:
         signal = "GUCLU"
@@ -192,9 +237,12 @@ async def analyze_stock(symbol: str):
         "ema20": round(ema20, 2),
         "ema50": round(ema50, 2),
         "rsi14": round(rsi14, 2),
+        "macd": round(macd, 2),
+        "momentum20": round(momentum20, 2),
         "volume_ratio": round(volume_ratio, 2),
         "score": score,
         "signal": signal,
+        "risk": risk,
         "reasons": reasons
     }
 @app.post("/webhook/tradingview")
@@ -322,12 +370,16 @@ async def send_strong_signals():
 
     for item in results:
         message += (
-            f"🟢 {item['symbol']}\n"
-            f"Puan: {item['score']}/100\n"
-            f"Fiyat: ${item['price']}\n"
-            f"RSI: {item['rsi14']}\n"
-            f"Hacim Orani: {item['volume_ratio']}\n\n"
-        )
+    f"🟢 {item['symbol']}\n"
+    f"Puan: {item['score']}/100\n"
+    f"Fiyat: ${item['price']}\n"
+    f"RSI: {item['rsi14']}\n"
+    f"MACD: {item['macd']}\n"
+    f"Momentum 20G: %{item['momentum20']}\n"
+    f"Hacim Orani: {item['volume_ratio']}x\n"
+    f"Risk: {item['risk']}\n"
+    f"Sinyal: {item['signal']}\n\n"
+)
 
     url = (
         f"https://api.telegram.org/"
