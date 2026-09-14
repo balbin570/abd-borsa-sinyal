@@ -276,3 +276,61 @@ async def scan_watchlist():
         "count": len(results),
         "results": results
     }
+@app.get("/send-strong")
+async def send_strong_signals():
+    results = []
+
+    for symbol in WATCHLIST:
+        try:
+            analysis = await analyze_stock(symbol)
+
+            if analysis["score"] >= 75:
+                results.append(analysis)
+
+        except Exception:
+            continue
+
+    if not results:
+        return {
+            "status": "ok",
+            "message": "Guclu sinyal bulunamadi"
+        }
+
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        raise HTTPException(
+            status_code=500,
+            detail="Telegram settings missing"
+        )
+
+    message = "📊 ABD BORSA TARAMASI\n\n"
+
+    for item in results:
+        message += (
+            f"🟢 {item['symbol']}\n"
+            f"Puan: {item['score']}/100\n"
+            f"Fiyat: ${item['price']}\n"
+            f"RSI: {item['rsi14']}\n"
+            f"Hacim Orani: {item['volume_ratio']}\n\n"
+        )
+
+    url = (
+        f"https://api.telegram.org/"
+        f"bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    )
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        response = await client.post(
+            url,
+            json={
+                "chat_id": TELEGRAM_CHAT_ID,
+                "text": message
+            }
+        )
+
+        response.raise_for_status()
+
+    return {
+        "status": "sent",
+        "count": len(results),
+        "symbols": [item["symbol"] for item in results]
+    }
