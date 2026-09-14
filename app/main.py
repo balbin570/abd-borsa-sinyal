@@ -124,50 +124,56 @@ async def analyze_stock(symbol: str):
     if "values" not in data:
         raise HTTPException(status_code=400, detail=data)
 
-    # Twelve Data en yeni günü önce gönderir.
-    # Hesaplama için eski -> yeni sırasına çeviriyoruz.
     values = list(reversed(data["values"]))
 
     closes = [float(item["close"]) for item in values]
     volumes = [float(item["volume"]) for item in values]
 
-    if len(closes) < 50:
+    if len(closes) < 51:
         raise HTTPException(
             status_code=400,
             detail="Yeterli fiyat verisi bulunamadı"
         )
 
-    price = closes[-1]
-    ema20 = calculate_ema(closes, 20)
-    ema50 = calculate_ema(closes, 50)
-    rsi14 = calculate_rsi(closes, 14)
+    # Son bar henüz tamamlanmamış olabilir.
+    # Bu yüzden analizde bir önceki tamamlanmış günü kullanıyoruz.
+    closes_completed = closes[:-1]
+    volumes_completed = volumes[:-1]
 
-    avg_volume20 = sum(volumes[-20:]) / 20
+    price = closes_completed[-1]
+
+    ema20 = calculate_ema(closes_completed, 20)
+    ema50 = calculate_ema(closes_completed, 50)
+    rsi14 = calculate_rsi(closes_completed, 14)
+
+    current_volume = volumes_completed[-1]
+    previous_20_volumes = volumes_completed[-21:-1]
+
+    if len(previous_20_volumes) == 20:
+        avg_volume20 = sum(previous_20_volumes) / 20
+    else:
+        avg_volume20 = 0
 
     if avg_volume20 > 0:
-        volume_ratio = volumes[-1] / avg_volume20
+        volume_ratio = current_volume / avg_volume20
     else:
         volume_ratio = 0
 
     score = 0
     reasons = []
 
-    # 1. Fiyat EMA20 üzerinde
     if price > ema20:
         score += 25
         reasons.append("Fiyat EMA20 üzerinde")
 
-    # 2. EMA20 EMA50 üzerinde
     if ema20 > ema50:
         score += 25
         reasons.append("EMA20 EMA50 üzerinde")
 
-    # 3. RSI olumlu bölgede
-    if 50 <= rsi14 <= 70:
+    if 55 <= rsi14 <= 75:
         score += 25
-        reasons.append("RSI olumlu bölgede")
+        reasons.append("RSI güçlü bölgede")
 
-    # 4. Hacim ortalamanın üzerinde
     if volume_ratio >= 1.20:
         score += 25
         reasons.append("Hacim 20 günlük ortalamanın üzerinde")
@@ -190,8 +196,6 @@ async def analyze_stock(symbol: str):
         "signal": signal,
         "reasons": reasons
     }
-
-
 @app.post("/webhook/tradingview")
 async def tradingview_webhook(request: Request, signal: Signal):
     key = request.query_params.get("key", "")
