@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 import httpx
 
-app = FastAPI(title="ABD Borsa Sinyal", version="1.1")
+app = FastAPI(title="ABD Borsa Sinyal", version="2.0")
 
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
@@ -18,9 +18,49 @@ class Signal(BaseModel):
     signal: str = "BULLISH"
 
 
+def calculate_ema(prices, period):
+    multiplier = 2 / (period + 1)
+    ema = sum(prices[:period]) / period
+
+    for price in prices[period:]:
+        ema = (price - ema) * multiplier + ema
+
+    return ema
+
+
+def calculate_rsi(prices, period=14):
+    if len(prices) < period + 1:
+        return None
+
+    gains = []
+    losses = []
+
+    for i in range(1, len(prices)):
+        change = prices[i] - prices[i - 1]
+
+        if change > 0:
+            gains.append(change)
+            losses.append(0)
+        else:
+            gains.append(0)
+            losses.append(abs(change))
+
+    avg_gain = sum(gains[-period:]) / period
+    avg_loss = sum(losses[-period:]) / period
+
+    if avg_loss == 0:
+        return 100.0
+
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
+
+
 @app.get("/")
 async def home():
-    return {"status": "online", "service": "ABD Borsa Sinyal"}
+    return {
+        "status": "online",
+        "service": "ABD Borsa Sinyal"
+    }
 
 
 @app.get("/health")
@@ -31,11 +71,15 @@ async def health():
 @app.get("/price/{symbol}")
 async def get_price(symbol: str):
     if not TWELVE_DATA_API_KEY:
-        raise HTTPException(status_code=500, detail="Twelve Data API key missing")
+        raise HTTPException(
+            status_code=500,
+            detail="Twelve Data API key missing"
+        )
 
     symbol = symbol.upper()
 
     url = "https://api.twelvedata.com/price"
+
     params = {
         "symbol": symbol,
         "apikey": TWELVE_DATA_API_KEY
@@ -54,6 +98,100 @@ async def get_price(symbol: str):
     }
 
 
+@app.get("/analyze/{symbol}")
+async def analyze_stock(symbol: str):
+    if not TWELVE_DATA_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="Twelve Data API key missing"
+        )
+
+    symbol = symbol.upper()
+
+    url = "https://api.twelvedata.com/time_series"
+
+    params = {
+        "symbol": symbol,
+        "interval": "1day",
+        "outputsize": 100,
+        "apikey": TWELVE_DATA_API_KEY
+    }
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        response = await client.get(url, params=params)
+        data = response.json()
+
+    if "values" not in data:
+        raise HTTPException(status_code=400, detail=data)
+
+    # Twelve Data en yeni günü önce gönderir.
+    # Hesaplama için eski -> yeni sırasına çeviriyoruz.
+    values = list(reversed(data["values"]))
+
+    closes = [float(item["close"]) for item in values]
+    volumes = [float(item["volume"]) for item in values]
+
+    if len(closes) < 50:
+        raise HTTPException(
+            status_code=400,
+            detail="Yeterli fiyat verisi bulunamadı"
+        )
+
+    price = closes[-1]
+    ema20 = calculate_ema(closes, 20)
+    ema50 = calculate_ema(closes, 50)
+    rsi14 = calculate_rsi(closes, 14)
+
+    avg_volume20 = sum(volumes[-20:]) / 20
+
+    if avg_volume20 > 0:
+        volume_ratio = volumes[-1] / avg_volume20
+    else:
+        volume_ratio = 0
+
+    score = 0
+    reasons = []
+
+    # 1. Fiyat EMA20 üzerinde
+    if price > ema20:
+        score += 25
+        reasons.append("Fiyat EMA20 üzerinde")
+
+    # 2. EMA20 EMA50 üzerinde
+    if ema20 > ema50:
+        score += 25
+        reasons.append("EMA20 EMA50 üzerinde")
+
+    # 3. RSI olumlu bölgede
+    if 50 <= rsi14 <= 70:
+        score += 25
+        reasons.append("RSI olumlu bölgede")
+
+    # 4. Hacim ortalamanın üzerinde
+    if volume_ratio >= 1.20:
+        score += 25
+        reasons.append("Hacim 20 günlük ortalamanın üzerinde")
+
+    if score >= 75:
+        signal = "GUCLU"
+    elif score >= 50:
+        signal = "ORTA"
+    else:
+        signal = "ZAYIF"
+
+    return {
+        "symbol": symbol,
+        "price": round(price, 2),
+        "ema20": round(ema20, 2),
+        "ema50": round(ema50, 2),
+        "rsi14": round(rsi14, 2),
+        "volume_ratio": round(volume_ratio, 2),
+        "score": score,
+        "signal": signal,
+        "reasons": reasons
+    }
+
+
 @app.post("/webhook/tradingview")
 async def tradingview_webhook(request: Request, signal: Signal):
     key = request.query_params.get("key", "")
@@ -62,7 +200,10 @@ async def tradingview_webhook(request: Request, signal: Signal):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        raise HTTPException(status_code=500, detail="Telegram settings missing")
+        raise HTTPException(
+            status_code=500,
+            detail="Telegram settings missing"
+        )
 
     message = (
         "TRADINGVIEW SIGNAL\n\n"
@@ -72,7 +213,10 @@ async def tradingview_webhook(request: Request, signal: Signal):
         f"Signal: {signal.signal}"
     )
 
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    url = (
+        f"https://api.telegram.org/"
+        f"bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    )
 
     async with httpx.AsyncClient(timeout=5) as client:
         response = await client.post(
