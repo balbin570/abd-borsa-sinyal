@@ -245,12 +245,6 @@ async def analyze_stock(symbol: str):
         reasons.append("Hacim ortalama üzerinde")
 
     # 5 - MACD: 20 puan
-  # 5 - MACD: 20 puan
-if macd > macd_signal and macd_histogram > 0:
-    score += 20
-            reasons.append("Hacim ortalama üzerinde")
-
-    # 5 - MACD: 20 puan
     if macd > macd_signal and macd_histogram > 0:
         score += 20
         reasons.append("MACD sinyal çizgisinin üzerinde")
