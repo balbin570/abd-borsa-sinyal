@@ -236,3 +236,43 @@ async def tradingview_webhook(request: Request, signal: Signal):
         "status": "received",
         "symbol": signal.symbol
     }
+WATCHLIST = [
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "AMZN",
+    "GOOGL"
+]
+
+
+@app.get("/scan")
+async def scan_watchlist():
+    results = []
+
+    for symbol in WATCHLIST:
+        try:
+            analysis = await analyze_stock(symbol)
+
+            results.append({
+                "symbol": analysis["symbol"],
+                "price": analysis["price"],
+                "score": analysis["score"],
+                "signal": analysis["signal"]
+            })
+
+        except Exception as e:
+            results.append({
+                "symbol": symbol,
+                "error": str(e)
+            })
+
+    results = sorted(
+        results,
+        key=lambda x: x.get("score", 0),
+        reverse=True
+    )
+
+    return {
+        "count": len(results),
+        "results": results
+    }
