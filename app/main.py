@@ -1,4 +1,5 @@
 import os
+import asyncio
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 import httpx
@@ -236,12 +237,11 @@ async def tradingview_webhook(request: Request, signal: Signal):
         "status": "received",
         "symbol": signal.symbol
     }
-WATCHLIST = [
-    "AAPL",
-    "MSFT",
-    "NVDA",
-    "AMZN",
-    "GOOGL"
+WATCHLIST_GROUPS = [
+    ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL"],
+    ["META", "AVGO", "TSLA", "AMD", "NFLX"],
+    ["PLTR", "ORCL", "CRM", "QCOM", "MU"],
+    ["AMAT", "PANW", "CRWD", "LRCX", "KLAC"]
 ]
 
 
@@ -249,22 +249,27 @@ WATCHLIST = [
 async def scan_watchlist():
     results = []
 
-    for symbol in WATCHLIST:
-        try:
-            analysis = await analyze_stock(symbol)
+    for group in WATCHLIST_GROUPS:
+        for symbol in group:
+            try:
+                analysis = await analyze_stock(symbol)
 
-            results.append({
-                "symbol": analysis["symbol"],
-                "price": analysis["price"],
-                "score": analysis["score"],
-                "signal": analysis["signal"]
-            })
+                results.append({
+                    "symbol": analysis["symbol"],
+                    "price": analysis["price"],
+                    "score": analysis["score"],
+                    "signal": analysis["signal"]
+                })
 
-        except Exception as e:
-            results.append({
-                "symbol": symbol,
-                "error": str(e)
-            })
+            except Exception as e:
+                results.append({
+                    "symbol": symbol,
+                    "error": str(e)
+                })
+
+        # API limitine takılmamak için
+        # her 5 hisseden sonra bekle
+        await asyncio.sleep(60)
 
     results = sorted(
         results,
@@ -280,15 +285,20 @@ async def scan_watchlist():
 async def send_strong_signals():
     results = []
 
-    for symbol in WATCHLIST:
-        try:
-            analysis = await analyze_stock(symbol)
+    for group in WATCHLIST_GROUPS:
+        for symbol in group:
+            try:
+                analysis = await analyze_stock(symbol)
 
-            if analysis["score"] >= 75:
-                results.append(analysis)
+                if analysis["score"] >= 75:
+                    results.append(analysis)
 
-        except Exception:
-            continue
+            except Exception:
+                continue
+
+        # Twelve Data ücretsiz planda
+        # dakikalık limite takılmamak için bekle
+        await asyncio.sleep(60)
 
     if not results:
         return {
@@ -301,6 +311,12 @@ async def send_strong_signals():
             status_code=500,
             detail="Telegram settings missing"
         )
+
+    results = sorted(
+        results,
+        key=lambda x: x["score"],
+        reverse=True
+    )
 
     message = "📊 ABD BORSA TARAMASI\n\n"
 
