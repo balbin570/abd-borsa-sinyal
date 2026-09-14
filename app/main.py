@@ -423,6 +423,8 @@ async def send_strong_signals():
     f"Fiyat: ${item['price']}\n"
     f"RSI: {item['rsi14']}\n"
     f"MACD: {item['macd']}\n"
+    f"MACD Signal: {item['macd_signal']}\n"
+    f"MACD Histogram: {item['macd_histogram']}\n"
     f"Momentum 20G: %{item['momentum20']}\n"
     f"Hacim Orani: {item['volume_ratio']}x\n"
     f"Risk: {item['risk']}\n"
