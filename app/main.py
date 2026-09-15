@@ -352,7 +352,7 @@ async def backtest_stock(symbol: str, threshold: int = 75):
         previous_score = score
         
     if not signals:
-    avg_baseline_20d = (
+        avg_baseline_20d = (
         sum(all_forward_returns_20d) / len(all_forward_returns_20d)
         if all_forward_returns_20d
         else 0
