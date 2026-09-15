@@ -235,8 +235,9 @@ async def backtest_stock(symbol: str):
     values = list(reversed(data["values"]))
 
     closes = [float(item["close"]) for item in values]
+    opens = [float(item["open"]) for item in values]
     volumes = [float(item["volume"]) for item in values]
-
+    
     signals = []
     previous_score = 0
 
@@ -253,23 +254,25 @@ async def backtest_stock(symbol: str):
         )
 
         if score >= 75 and previous_score < 75:
-            price = closes[i]
+            entry_price = opens[i + 1]
+            entry_date = values[i + 1]["datetime"]
 
             return_5d = (
-                (closes[i + 5] - price) / price
+                (closes[i + 5] - entry_price) / entry_price
             ) * 100
 
             return_10d = (
-                (closes[i + 10] - price) / price
+                (closes[i + 10] - entry_price) / entry_price
             ) * 100
 
             return_20d = (
-                (closes[i + 20] - price) / price
+                (closes[i + 20] - entry_price) / entry_price
             ) * 100
 
             signals.append({
-                "date": values[i]["datetime"],
-                "price": round(price, 2),
+                "signal_date": values[i]["datetime"],
+                "entry_date": entry_date,
+                "entry_price": round(entry_price, 2),
                 "score": score,
                 "return_5d": round(return_5d, 2),
                 "return_10d": round(return_10d, 2),
