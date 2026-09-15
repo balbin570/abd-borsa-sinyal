@@ -214,7 +214,7 @@ BACKTEST_WATCHLIST = [
 ]
 
 @app.get("/backtest/{symbol}")
-async def backtest_stock(symbol: str):
+async def backtest_stock(symbol: str, threshold: int = 75):
     if not TWELVE_DATA_API_KEY:
         raise HTTPException(
             status_code=500,
@@ -260,7 +260,7 @@ async def backtest_stock(symbol: str):
             historical_volumes
         )
 
-        if score >= 75 and previous_score < 75:
+        if score >= threshold and previous_score < threshold:
             entry_price = opens[i + 1]
             entry_date = values[i + 1]["datetime"]
 
@@ -327,7 +327,7 @@ async def backtest_stock(symbol: str):
     }
 
 @app.get("/backtest-all")
-async def backtest_all():
+async def backtest_all(threshold: int = 75):
     results = []
 
     for group_start in range(0, len(BACKTEST_WATCHLIST), 5):
@@ -338,7 +338,10 @@ async def backtest_all():
 
         for symbol in group:
             try:
-                result = await backtest_stock(symbol)
+                result = await backtest_stock(
+                    symbol,
+                    threshold=threshold
+                )
 
                 results.append({
                     "symbol": symbol,
@@ -418,6 +421,7 @@ async def backtest_all():
     )
 
     return {
+        "threshold": threshold,
         "stock_count": len(BACKTEST_WATCHLIST),
         "total_signals": total_signals,
         "overall_average_return_5d": round(
