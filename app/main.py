@@ -141,6 +141,177 @@ async def get_price(symbol: str):
         "price": float(data["price"])
     }
 
+def calculate_backtest_score(closes, volumes):
+    price = closes[-1]
+
+    ema20 = calculate_ema(closes, 20)
+    ema50 = calculate_ema(closes, 50)
+    rsi14 = calculate_rsi(closes, 14)
+
+    macd, macd_signal, macd_histogram = calculate_macd(closes)
+
+    # 20 günlük momentum
+    price_20_days_ago = closes[-21]
+
+    momentum20 = (
+        (price - price_20_days_ago)
+        / price_20_days_ago
+    ) * 100
+
+    # Hacim
+    current_volume = volumes[-1]
+    previous_20_volumes = volumes[-21:-1]
+
+    avg_volume20 = sum(previous_20_volumes) / 20
+
+    if avg_volume20 > 0:
+        volume_ratio = current_volume / avg_volume20
+    else:
+        volume_ratio = 0
+
+    score = 0
+
+    # Trend - maksimum 35 puan
+    if price > ema20:
+        score += 15
+
+    if ema20 > ema50:
+        score += 20
+
+    # RSI - maksimum 15 puan
+    if 55 <= rsi14 <= 70:
+        score += 15
+    elif 50 <= rsi14 < 55:
+        score += 8
+    elif 70 < rsi14 <= 75:
+        score += 8
+
+    # Hacim - maksimum 15 puan
+    if volume_ratio >= 1.20:
+        score += 15
+    elif volume_ratio >= 1.00:
+        score += 8
+
+    # MACD - maksimum 20 puan
+    if macd > macd_signal and macd_histogram > 0:
+        score += 20
+    elif macd > macd_signal:
+        score += 10
+
+    # Momentum - maksimum 15 puan
+    if momentum20 >= 5:
+        score += 15
+    elif momentum20 > 0:
+        score += 8
+
+    return score
+
+@app.get("/backtest/{symbol}")
+async def backtest_stock(symbol: str):
+    if not TWELVE_DATA_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="Twelve Data API key missing"
+        )
+
+    symbol = symbol.upper()
+
+    url = "https://api.twelvedata.com/time_series"
+
+    params = {
+        "symbol": symbol,
+        "interval": "1day",
+        "outputsize": 300,
+        "apikey": TWELVE_DATA_API_KEY
+    }
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        response = await client.get(url, params=params)
+        data = response.json()
+
+    if "values" not in data:
+        raise HTTPException(status_code=400, detail=data)
+
+    values = list(reversed(data["values"]))
+
+    closes = [float(item["close"]) for item in values]
+    volumes = [float(item["volume"]) for item in values]
+
+    signals = []
+
+    # İlk 60 gün indikatör hesaplamak için,
+    # son 20 gün ise ileri performansı ölçmek için ayrılıyor.
+    for i in range(60, len(closes) - 20):
+
+        historical_closes = closes[:i + 1]
+        historical_volumes = volumes[:i + 1]
+
+        score = calculate_backtest_score(
+            historical_closes,
+            historical_volumes
+        )
+
+        if score >= 75:
+            price = closes[i]
+
+            return_5d = (
+                (closes[i + 5] - price) / price
+            ) * 100
+
+            return_10d = (
+                (closes[i + 10] - price) / price
+            ) * 100
+
+            return_20d = (
+                (closes[i + 20] - price) / price
+            ) * 100
+
+            signals.append({
+                "date": values[i]["datetime"],
+                "price": round(price, 2),
+                "score": score,
+                "return_5d": round(return_5d, 2),
+                "return_10d": round(return_10d, 2),
+                "return_20d": round(return_20d, 2)
+            })
+
+    if not signals:
+        return {
+            "symbol": symbol,
+            "signal_count": 0,
+            "message": "Backtest döneminde 75+ sinyal bulunamadı"
+        }
+
+    avg_5d = sum(
+        item["return_5d"] for item in signals
+    ) / len(signals)
+
+    avg_10d = sum(
+        item["return_10d"] for item in signals
+    ) / len(signals)
+
+    avg_20d = sum(
+        item["return_20d"] for item in signals
+    ) / len(signals)
+
+    wins_20d = sum(
+        1 for item in signals
+        if item["return_20d"] > 0
+    )
+
+    win_rate_20d = (
+        wins_20d / len(signals)
+    ) * 100
+
+    return {
+        "symbol": symbol,
+        "signal_count": len(signals),
+        "average_return_5d": round(avg_5d, 2),
+        "average_return_10d": round(avg_10d, 2),
+        "average_return_20d": round(avg_20d, 2),
+        "win_rate_20d": round(win_rate_20d, 1),
+        "signals": signals
+    }
 
 @app.get("/analyze/{symbol}")
 async def analyze_stock(symbol: str):
