@@ -8,7 +8,7 @@ app = FastAPI(title="ABD Borsa Sinyal", version="2.0")
 
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID     previous_score = score        
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")     
 TWELVE_DATA_API_KEY = os.getenv("TWELVE_DATA_API_KEY", "")
 
 class Signal(BaseModel):
