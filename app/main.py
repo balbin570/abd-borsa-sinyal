@@ -206,6 +206,13 @@ def calculate_backtest_score(closes, volumes):
 
     return score
 
+BACKTEST_WATCHLIST = [
+    "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL",
+    "META", "AVGO", "TSLA", "AMD", "NFLX",
+    "PLTR", "ORCL", "CRM", "QCOM", "MU",
+    "AMAT", "PANW", "CRWD", "LRCX", "KLAC"
+]
+
 @app.get("/backtest/{symbol}")
 async def backtest_stock(symbol: str):
     if not TWELVE_DATA_API_KEY:
@@ -317,6 +324,115 @@ async def backtest_stock(symbol: str):
         "average_return_20d": round(avg_20d, 2),
         "win_rate_20d": round(win_rate_20d, 1),
         "signals": signals
+    }
+
+@app.get("/backtest-all")
+async def backtest_all():
+    results = []
+
+    for group_start in range(0, len(BACKTEST_WATCHLIST), 5):
+
+        group = BACKTEST_WATCHLIST[
+            group_start:group_start + 5
+        ]
+
+        for symbol in group:
+            try:
+                result = await backtest_stock(symbol)
+
+                results.append({
+                    "symbol": symbol,
+                    "signal_count": result.get("signal_count", 0),
+                    "average_return_5d": result.get(
+                        "average_return_5d", 0
+                    ),
+                    "average_return_10d": result.get(
+                        "average_return_10d", 0
+                    ),
+                    "average_return_20d": result.get(
+                        "average_return_20d", 0
+                    ),
+                    "win_rate_20d": result.get(
+                        "win_rate_20d", 0
+                    )
+                })
+
+            except Exception as e:
+                results.append({
+                    "symbol": symbol,
+                    "error": str(e)
+                })
+
+        if group_start + 5 < len(BACKTEST_WATCHLIST):
+            await asyncio.sleep(60)
+
+    successful = [
+        item for item in results
+        if "error" not in item
+        and item["signal_count"] > 0
+    ]
+
+    total_signals = sum(
+        item["signal_count"]
+        for item in successful
+    )
+
+    if total_signals > 0:
+
+        weighted_5d = sum(
+            item["average_return_5d"]
+            * item["signal_count"]
+            for item in successful
+        ) / total_signals
+
+        weighted_10d = sum(
+            item["average_return_10d"]
+            * item["signal_count"]
+            for item in successful
+        ) / total_signals
+
+        weighted_20d = sum(
+            item["average_return_20d"]
+            * item["signal_count"]
+            for item in successful
+        ) / total_signals
+
+        weighted_win_rate = sum(
+            item["win_rate_20d"]
+            * item["signal_count"]
+            for item in successful
+        ) / total_signals
+
+    else:
+        weighted_5d = 0
+        weighted_10d = 0
+        weighted_20d = 0
+        weighted_win_rate = 0
+
+    results = sorted(
+        results,
+        key=lambda x: x.get(
+            "average_return_20d", -999
+        ),
+        reverse=True
+    )
+
+    return {
+        "stock_count": len(BACKTEST_WATCHLIST),
+        "total_signals": total_signals,
+        "overall_average_return_5d": round(
+            weighted_5d, 2
+        ),
+        "overall_average_return_10d": round(
+            weighted_10d, 2
+        ),
+        "overall_average_return_20d": round(
+            weighted_20d, 2
+        ),
+        "overall_win_rate_20d": round(
+            weighted_win_rate, 1
+        ),
+        "results": results
     }
 
 @app.get("/analyze/{symbol}")
