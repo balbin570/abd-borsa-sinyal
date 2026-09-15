@@ -239,11 +239,36 @@ async def backtest_stock(symbol: str, threshold: int = 75):
     if "values" not in data:
         raise HTTPException(status_code=400, detail=data)
 
+    spy_params = {
+        "symbol": "SPY",
+        "interval": "1day",
+        "outputsize": 300,
+        "apikey": TWELVE_DATA_API_KEY
+    }
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        spy_response = await client.get(
+            url,
+            params=spy_params
+        )
+        spy_data = spy_response.json()
+
+    if "values" not in spy_data:
+        raise HTTPException(
+            status_code=400,
+            detail=spy_data
+        )
+
+    spy_values = list(reversed(spy_data["values"]))
+    
     values = list(reversed(data["values"]))
 
     closes = [float(item["close"]) for item in values]
     opens = [float(item["open"]) for item in values]
     volumes = [float(item["volume"]) for item in values]
+    
+    spy_closes = [float(item["close"]) for item in spy_values]
+    spy_opens = [float(item["open"]) for item in spy_values]
     
     signals = []
     previous_score = 0
@@ -276,6 +301,17 @@ async def backtest_stock(symbol: str, threshold: int = 75):
                 (closes[i + 20] - entry_price) / entry_price
             ) * 100
 
+            spy_entry_price = spy_opens[i + 1]
+
+            spy_return_20d = (
+                (spy_closes[i + 20] - spy_entry_price)
+                / spy_entry_price
+            ) * 100
+
+            excess_return_20d = (
+                return_20d - spy_return_20d
+            )
+
             signals.append({
                 "signal_date": values[i]["datetime"],
                 "entry_date": entry_date,
@@ -283,7 +319,9 @@ async def backtest_stock(symbol: str, threshold: int = 75):
                 "score": score,
                 "return_5d": round(return_5d, 2),
                 "return_10d": round(return_10d, 2),
-                "return_20d": round(return_20d, 2)
+                "return_20d": round(return_20d, 2),
+                spy_return_20d": round(spy_return_20d, 2),
+                "excess_return_20d": round(excess_return_20d, 2)
             })
 
         previous_score = score
@@ -306,6 +344,23 @@ async def backtest_stock(symbol: str, threshold: int = 75):
     avg_20d = sum(
         item["return_20d"] for item in signals
     ) / len(signals)
+    
+    avg_spy_20d = sum(
+        item["spy_return_20d"] for item in signals
+    ) / len(signals)
+
+    avg_excess_20d = sum(
+        item["excess_return_20d"] for item in signals
+    ) / len(signals)
+
+    beats_spy_20d = sum(
+        1 for item in signals
+        if item["excess_return_20d"] > 0
+    )
+
+    beat_spy_rate_20d = (
+       beats_spy_20d / len(signals)
+    ) * 100
 
     wins_20d = sum(
         1 for item in signals
@@ -318,11 +373,15 @@ async def backtest_stock(symbol: str, threshold: int = 75):
 
     return {
         "symbol": symbol,
+        "threshold": threshold,
         "signal_count": len(signals),
         "average_return_5d": round(avg_5d, 2),
         "average_return_10d": round(avg_10d, 2),
         "average_return_20d": round(avg_20d, 2),
         "win_rate_20d": round(win_rate_20d, 1),
+        "average_spy_return_20d": round(avg_spy_20d, 2),
+        "average_excess_return_20d": round(avg_excess_20d, 2),
+        "beat_spy_rate_20d": round(beat_spy_rate_20d, 1),
         "signals": signals
     }
 
