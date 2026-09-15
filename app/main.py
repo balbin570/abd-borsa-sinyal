@@ -267,9 +267,14 @@ async def backtest_stock(symbol: str, threshold: int = 75):
     opens = [float(item["open"]) for item in values]
     volumes = [float(item["volume"]) for item in values]
     
-    spy_closes = [float(item["close"]) for item in spy_values]
-    spy_opens = [float(item["open"]) for item in spy_values]
-    
+    spy_by_date = {
+        item["datetime"]: {
+            "open": float(item["open"]),
+            "close": float(item["close"])
+        }
+        for item in spy_values
+   }
+        
     signals = []
     previous_score = 0
 
@@ -301,10 +306,18 @@ async def backtest_stock(symbol: str, threshold: int = 75):
                 (closes[i + 20] - entry_price) / entry_price
             ) * 100
 
-            spy_entry_price = spy_opens[i + 1]
+            spy_entry_date = values[i + 1]["datetime"]
+            spy_exit_date = values[i + 20]["datetime"]
+
+            if spy_entry_date not in spy_by_date or spy_exit_date not in spy_by_date:
+                previous_score = score
+                continue
+                
+            spy_entry_price = spy_by_date[spy_entry_date]["open"]
+            spy_exit_price = spy_by_date[spy_exit_date]["close"]
 
             spy_return_20d = (
-                (spy_closes[i + 20] - spy_entry_price)
+                (spy_exit_price - spy_entry_price)
                 / spy_entry_price
             ) * 100
 
@@ -389,10 +402,10 @@ async def backtest_stock(symbol: str, threshold: int = 75):
 async def backtest_all(threshold: int = 75):
     results = []
 
-    for group_start in range(0, len(BACKTEST_WATCHLIST), 5):
+    for group_start in range(0, len(BACKTEST_WATCHLIST), 4):
 
         group = BACKTEST_WATCHLIST[
-            group_start:group_start + 5
+            group_start:group_start + 4
         ]
 
         for symbol in group:
@@ -403,21 +416,37 @@ async def backtest_all(threshold: int = 75):
                 )
 
                 results.append({
-                    "symbol": symbol,
-                    "signal_count": result.get("signal_count", 0),
-                    "average_return_5d": result.get(
-                        "average_return_5d", 0
-                    ),
-                    "average_return_10d": result.get(
-                        "average_return_10d", 0
-                    ),
-                    "average_return_20d": result.get(
-                        "average_return_20d", 0
-                    ),
-                    "win_rate_20d": result.get(
-                        "win_rate_20d", 0
-                    )
-                })
+    "symbol": symbol,
+    "signal_count": result.get("signal_count", 0),
+
+    "average_return_5d": result.get(
+        "average_return_5d", 0
+    ),
+
+    "average_return_10d": result.get(
+        "average_return_10d", 0
+    ),
+
+    "average_return_20d": result.get(
+        "average_return_20d", 0
+    ),
+
+    "win_rate_20d": result.get(
+        "win_rate_20d", 0
+    ),
+
+    "average_spy_return_20d": result.get(
+        "average_spy_return_20d", 0
+    ),
+
+    "average_excess_return_20d": result.get(
+        "average_excess_return_20d", 0
+    ),
+
+    "beat_spy_rate_20d": result.get(
+        "beat_spy_rate_20d", 0
+    )
+})
 
             except Exception as e:
                 results.append({
@@ -425,7 +454,7 @@ async def backtest_all(threshold: int = 75):
                     "error": str(e)
                 })
 
-        if group_start + 5 < len(BACKTEST_WATCHLIST):
+        if group_start + 4 < len(BACKTEST_WATCHLIST):
             await asyncio.sleep(60)
 
     successful = [
@@ -440,28 +469,38 @@ async def backtest_all(threshold: int = 75):
     )
 
     if total_signals > 0:
-
         weighted_5d = sum(
-            item["average_return_5d"]
-            * item["signal_count"]
+            item["average_return_5d"] * item["signal_count"]
             for item in successful
         ) / total_signals
 
         weighted_10d = sum(
-            item["average_return_10d"]
-            * item["signal_count"]
+            item["average_return_10d"] * item["signal_count"]
             for item in successful
         ) / total_signals
 
         weighted_20d = sum(
-            item["average_return_20d"]
-            * item["signal_count"]
+            item["average_return_20d"] * item["signal_count"]
             for item in successful
         ) / total_signals
 
         weighted_win_rate = sum(
-            item["win_rate_20d"]
-            * item["signal_count"]
+            item["win_rate_20d"] * item["signal_count"]
+            for item in successful
+        ) / total_signals
+
+        weighted_spy_20d = sum(
+            item["average_spy_return_20d"] * item["signal_count"]
+            for item in successful
+        ) / total_signals
+
+        weighted_excess_20d = sum(
+            item["average_excess_return_20d"] * item["signal_count"]
+            for item in successful
+        ) / total_signals
+
+        weighted_beat_spy_rate = sum(
+            item["beat_spy_rate_20d"] * item["signal_count"]
             for item in successful
         ) / total_signals
 
@@ -470,6 +509,9 @@ async def backtest_all(threshold: int = 75):
         weighted_10d = 0
         weighted_20d = 0
         weighted_win_rate = 0
+        weighted_spy_20d = 0
+        weighted_excess_20d = 0
+        weighted_beat_spy_rate = 0
 
     results = sorted(
         results,
@@ -494,6 +536,15 @@ async def backtest_all(threshold: int = 75):
         ),
         "overall_win_rate_20d": round(
             weighted_win_rate, 1
+        ),
+        "overall_average_spy_return_20d": round(
+            weighted_spy_20d, 2
+        ),        
+        "overall_average_excess_return_20d": round(
+            weighted_excess_20d, 2
+        ),
+        "overall_beat_spy_rate_20d": round(
+            weighted_beat_spy_rate, 1 
         ),
         "results": results
     }
