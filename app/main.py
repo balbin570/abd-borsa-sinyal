@@ -238,6 +238,7 @@ async def backtest_stock(symbol: str):
     volumes = [float(item["volume"]) for item in values]
 
     signals = []
+    previous_score = 0
 
     # İlk 60 gün indikatör hesaplamak için,
     # son 20 gün ise ileri performansı ölçmek için ayrılıyor.
@@ -251,7 +252,7 @@ async def backtest_stock(symbol: str):
             historical_volumes
         )
 
-        if score >= 75:
+        if score >= 75 and previous_score < 75:
             price = closes[i]
 
             return_5d = (
@@ -275,6 +276,8 @@ async def backtest_stock(symbol: str):
                 "return_20d": round(return_20d, 2)
             })
 
+        previous_score = score
+        
     if not signals:
         return {
             "symbol": symbol,
