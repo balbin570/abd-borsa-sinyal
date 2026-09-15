@@ -289,9 +289,9 @@ async def backtest_stock(symbol: str, threshold: int = 75):
             / baseline_entry_price
         ) * 100
 
-       all_forward_returns_20d.append(
-           baseline_return_20d
-       )
+        all_forward_returns_20d.append(
+            baseline_return_20d
+        )
 
         historical_closes = closes[:i + 1]
         historical_volumes = volumes[:i + 1]
