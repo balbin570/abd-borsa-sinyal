@@ -278,9 +278,12 @@ async def backtest_stock(symbol: str, threshold: int = 75):
     all_forward_returns_20d = []
     previous_score = 0
 
+    # Out-of-sample test için veriyi iki döneme ayır
+    split_index = int(len(closes) * 0.70)
+
     # İlk 60 gün indikatör hesaplamak için,
     # son 20 gün ise ileri performansı ölçmek için ayrılıyor.
-    for i in range(60, len(closes) - 20):
+    for i in range(split_index, len(closes) - 20):
 
         baseline_entry_price = opens[i + 1]
 
