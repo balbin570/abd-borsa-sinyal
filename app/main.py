@@ -1,5 +1,6 @@
 import os
 import asyncio
+import statistics
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 import httpx
@@ -388,6 +389,10 @@ async def backtest_stock(symbol: str, threshold: int = 75):
         item["return_20d"] for item in signals
     ) / len(signals)
 
+    median_20d = statistics.median(
+        item["return_20d"] for item in signals
+    )
+    
     avg_baseline_20d = sum(
         all_forward_returns_20d
     ) / len(all_forward_returns_20d)
@@ -429,6 +434,7 @@ async def backtest_stock(symbol: str, threshold: int = 75):
         "average_return_5d": round(avg_5d, 2),
         "average_return_10d": round(avg_10d, 2),
         "average_return_20d": round(avg_20d, 2),
+        "median_return_20d": round(median_20d, 2),
         "baseline_average_return_20d": round(avg_baseline_20d, 2),
         "signal_advantage_20d": round(signal_advantage_20d, 2),
         "win_rate_20d": round(win_rate_20d, 1),
@@ -470,6 +476,10 @@ async def backtest_all(threshold: int = 75):
     "average_return_20d": result.get(
         "average_return_20d", 0
     ),
+
+    "median_return_20d": result.get(
+        "median_return_20d", 0
+    ),                
 
     "baseline_average_return_20d": result.get(
         "baseline_average_return_20d", 0
