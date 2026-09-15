@@ -276,11 +276,23 @@ async def backtest_stock(symbol: str, threshold: int = 75):
    }
         
     signals = []
+    all_forward_returns_20d = []
     previous_score = 0
 
     # İlk 60 gün indikatör hesaplamak için,
     # son 20 gün ise ileri performansı ölçmek için ayrılıyor.
     for i in range(60, len(closes) - 20):
+
+        baseline_entry_price = opens[i + 1]
+
+        baseline_return_20d = (
+            (closes[i + 20] - baseline_entry_price)
+            / baseline_entry_price
+        ) * 100
+
+       all_forward_returns_20d.append(
+           baseline_return_20d
+       )
 
         historical_closes = closes[:i + 1]
         historical_volumes = volumes[:i + 1]
@@ -340,11 +352,27 @@ async def backtest_stock(symbol: str, threshold: int = 75):
         previous_score = score
         
     if not signals:
-        return {
-            "symbol": symbol,
-            "signal_count": 0,
-            "message": "Backtest döneminde 75+ sinyal bulunamadı"
-        }
+    avg_baseline_20d = (
+        sum(all_forward_returns_20d) / len(all_forward_returns_20d)
+        if all_forward_returns_20d
+        else 0
+    )
+
+    return {
+        "symbol": symbol,
+        "threshold": threshold,
+        "signal_count": 0,
+        "average_return_5d": 0,
+        "average_return_10d": 0,
+        "average_return_20d": 0,
+        "baseline_average_return_20d": round(avg_baseline_20d, 2),
+        "signal_advantage_20d": 0,
+        "win_rate_20d": 0,
+        "average_spy_return_20d": 0,
+        "average_excess_return_20d": 0,
+        "beat_spy_rate_20d": 0,
+        "message": f"Backtest döneminde {threshold}+ sinyal bulunamadı"
+    }
 
     avg_5d = sum(
         item["return_5d"] for item in signals
@@ -357,6 +385,14 @@ async def backtest_stock(symbol: str, threshold: int = 75):
     avg_20d = sum(
         item["return_20d"] for item in signals
     ) / len(signals)
+
+    avg_baseline_20d = sum(
+        all_forward_returns_20d
+    ) / len(all_forward_returns_20d)
+
+    signal_advantage_20d = (
+        avg_20d - avg_baseline_20d
+    )
     
     avg_spy_20d = sum(
         item["spy_return_20d"] for item in signals
@@ -391,6 +427,8 @@ async def backtest_stock(symbol: str, threshold: int = 75):
         "average_return_5d": round(avg_5d, 2),
         "average_return_10d": round(avg_10d, 2),
         "average_return_20d": round(avg_20d, 2),
+        "baseline_average_return_20d": round(avg_baseline_20d, 2),
+        "signal_advantage_20d": round(signal_advantage_20d, 2),
         "win_rate_20d": round(win_rate_20d, 1),
         "average_spy_return_20d": round(avg_spy_20d, 2),
         "average_excess_return_20d": round(avg_excess_20d, 2),
@@ -431,6 +469,14 @@ async def backtest_all(threshold: int = 75):
         "average_return_20d", 0
     ),
 
+    "baseline_average_return_20d": result.get(
+        "baseline_average_return_20d", 0
+    ),
+
+    "signal_advantage_20d": result.get(
+        "signal_advantage_20d", 0
+    ),
+                    
     "win_rate_20d": result.get(
         "win_rate_20d", 0
     ),
@@ -484,6 +530,11 @@ async def backtest_all(threshold: int = 75):
             for item in successful
         ) / total_signals
 
+        weighted_signal_advantage_20d = sum(
+            item["signal_advantage_20d"] * item["signal_count"]
+            for item in successful
+        ) / total_signals
+
         weighted_win_rate = sum(
             item["win_rate_20d"] * item["signal_count"]
             for item in successful
@@ -508,6 +559,7 @@ async def backtest_all(threshold: int = 75):
         weighted_5d = 0
         weighted_10d = 0
         weighted_20d = 0
+        weighted_signal_advantage_20d = 0
         weighted_win_rate = 0
         weighted_spy_20d = 0
         weighted_excess_20d = 0
@@ -533,6 +585,9 @@ async def backtest_all(threshold: int = 75):
         ),
         "overall_average_return_20d": round(
             weighted_20d, 2
+        ),
+        "overall_signal_advantage_20d": round(
+            weighted_signal_advantage_20d, 2
         ),
         "overall_win_rate_20d": round(
             weighted_win_rate, 1
