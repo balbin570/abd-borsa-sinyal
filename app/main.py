@@ -352,26 +352,26 @@ async def backtest_stock(symbol: str, threshold: int = 75):
         
     if not signals:
         avg_baseline_20d = (
-        sum(all_forward_returns_20d) / len(all_forward_returns_20d)
-        if all_forward_returns_20d
-        else 0
-    )
+            sum(all_forward_returns_20d) / len(all_forward_returns_20d)
+            if all_forward_returns_20d
+            else 0
+        )
 
-    return {
-        "symbol": symbol,
-        "threshold": threshold,
-        "signal_count": 0,
-        "average_return_5d": 0,
-        "average_return_10d": 0,
-        "average_return_20d": 0,
-        "baseline_average_return_20d": round(avg_baseline_20d, 2),
-        "signal_advantage_20d": 0,
-        "win_rate_20d": 0,
-        "average_spy_return_20d": 0,
-        "average_excess_return_20d": 0,
-        "beat_spy_rate_20d": 0,
-        "message": f"Backtest döneminde {threshold}+ sinyal bulunamadı"
-    }
+        return {
+            "symbol": symbol,
+            "threshold": threshold,
+            "signal_count": 0,
+            "average_return_5d": 0,
+            "average_return_10d": 0,
+            "average_return_20d": 0,
+            "baseline_average_return_20d": round(avg_baseline_20d, 2),
+            "signal_advantage_20d": 0,
+            "win_rate_20d": 0,
+            "average_spy_return_20d": 0,
+            "average_excess_return_20d": 0,
+            "beat_spy_rate_20d": 0,
+            "message": f"Backtest döneminde {threshold}+ sinyal bulunamadı"
+         }
 
     avg_5d = sum(
         item["return_5d"] for item in signals
