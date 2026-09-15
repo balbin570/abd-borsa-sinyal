@@ -320,7 +320,7 @@ async def backtest_stock(symbol: str, threshold: int = 75):
                 "return_5d": round(return_5d, 2),
                 "return_10d": round(return_10d, 2),
                 "return_20d": round(return_20d, 2),
-                spy_return_20d": round(spy_return_20d, 2),
+                "spy_return_20d": round(spy_return_20d, 2),
                 "excess_return_20d": round(excess_return_20d, 2)
             })
 
