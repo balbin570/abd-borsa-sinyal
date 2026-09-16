@@ -141,7 +141,7 @@ async def get_price(symbol: str):
         "price": float(data["price"])
     }
 
-def calculate_backtest_score_v1(closes, volumes):
+def calculate_backtest_score_momentum_test(closes, volumes):
     price = closes[-1]
 
     ema20 = calculate_ema(closes, 20)
@@ -199,10 +199,12 @@ def calculate_backtest_score_v1(closes, volumes):
         score += 10
 
     # Momentum - maksimum 15 puan
-    if momentum20 >= 5:
-        score += 15
-    elif momentum20 > 0:
-        score += 8
+    if 5 <= momentum20 <= 15:
+       score += 15
+    elif 0 < momentum20 < 5:
+       score += 8
+    elif 15 < momentum20 <= 20:
+       score += 5
 
     return score
 
@@ -460,7 +462,7 @@ async def backtest_stock(symbol: str, threshold: int = 75):
     # Out-of-sample test için veriyi iki döneme ayır
     split_index = int(len(closes) * 0.30)
 
-    previous_score = calculate_backtest_score_rsi_test(
+   previous_score = calculate_backtest_score_momentum_test(
         closes[:split_index],
         volumes[:split_index]
     )
@@ -483,7 +485,7 @@ async def backtest_stock(symbol: str, threshold: int = 75):
         historical_closes = closes[:i + 1]
         historical_volumes = volumes[:i + 1]
 
-        score = calculate_backtest_score_rsi_test(
+        score = calculate_backtest_score_momentum_test(
             historical_closes,
             historical_volumes
         )
