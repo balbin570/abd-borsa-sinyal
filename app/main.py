@@ -278,6 +278,7 @@ async def backtest_stock(symbol: str, threshold: int = 75):
     signals = []
     all_forward_returns_20d = []
     previous_score = 0
+    last_signal_index = -999
 
     # Out-of-sample test için veriyi iki döneme ayır
     split_index = int(len(closes) * 0.70)
@@ -305,7 +306,11 @@ async def backtest_stock(symbol: str, threshold: int = 75):
             historical_volumes
         )
 
-        if score >= threshold and previous_score < threshold:
+        if (
+            score >= threshold
+            and previous_score < threshold
+            and i - last_signal_index >= 20
+        ):
             entry_price = opens[i + 1]
             entry_date = values[i + 1]["datetime"]
 
@@ -351,6 +356,8 @@ async def backtest_stock(symbol: str, threshold: int = 75):
                 "spy_return_20d": round(spy_return_20d, 2),
                 "excess_return_20d": round(excess_return_20d, 2)
             })
+
+            last_signal_index = i
 
         previous_score = score
         
