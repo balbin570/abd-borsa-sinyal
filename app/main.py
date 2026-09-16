@@ -206,7 +206,7 @@ def calculate_backtest_score_v1(closes, volumes):
 
     return score
 
-def calculate_backtest_score_v2(closes, volumes):
+def calculate_backtest_score_v1(closes, volumes):
     price = closes[-1]
 
     ema20 = calculate_ema(closes, 20)
@@ -367,7 +367,7 @@ async def backtest_stock(symbol: str, threshold: int = 75):
         historical_closes = closes[:i + 1]
         historical_volumes = volumes[:i + 1]
 
-        score = calculate_backtest_score_v2(
+        score = calculate_backtest_score_v1(
             historical_closes,
             historical_volumes
         )
