@@ -667,7 +667,7 @@ async def backtest_all(
             try:
                 result = await backtest_stock(
                     symbol,
-                    threshold=threshold
+                    threshold=threshold,
                     start_date=start_date,
                     end_date=end_date
                 )
