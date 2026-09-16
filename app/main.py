@@ -325,6 +325,64 @@ def calculate_backtest_score_volume_test(closes, volumes):
 
     return score
 
+def calculate_backtest_score_rsi_test(closes, volumes):
+    price = closes[-1]
+
+    ema20 = calculate_ema(closes, 20)
+    ema50 = calculate_ema(closes, 50)
+    rsi14 = calculate_rsi(closes, 14)
+
+    macd, macd_signal, macd_histogram = calculate_macd(closes)
+
+    price_20_days_ago = closes[-21]
+
+    momentum20 = (
+        (price - price_20_days_ago)
+        / price_20_days_ago
+    ) * 100
+
+    current_volume = volumes[-1]
+    previous_20_volumes = volumes[-21:-1]
+    avg_volume20 = sum(previous_20_volumes) / 20
+
+    if avg_volume20 > 0:
+        volume_ratio = current_volume / avg_volume20
+    else:
+        volume_ratio = 0
+
+    score = 0
+
+    if price > ema20:
+        score += 15
+
+    if ema20 > ema50:
+        score += 20
+
+    if 55 <= rsi14 <= 65:
+        score += 15
+    elif 50 <= rsi14 < 55:
+        score += 8
+    elif 65 < rsi14 <= 70:
+        score += 8
+
+    # Sadece hacim kuralı değiştirildi
+    if volume_ratio >= 1.20:
+        score += 15
+    elif volume_ratio >= 1.00:
+        score += 8
+
+    if macd > macd_signal and macd_histogram > 0:
+        score += 20
+    elif macd > macd_signal:
+        score += 10
+
+    if momentum20 >= 5:
+        score += 15
+    elif momentum20 > 0:
+        score += 8
+
+    return score
+
 BACKTEST_WATCHLIST = [
     "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL",
     "META", "AVGO", "TSLA", "AMD", "NFLX",
@@ -402,7 +460,7 @@ async def backtest_stock(symbol: str, threshold: int = 75):
     # Out-of-sample test için veriyi iki döneme ayır
     split_index = int(len(closes) * 0.30)
 
-    previous_score = calculate_backtest_score_volume_test(
+    previous_score = calculate_backtest_score_rsi_test(
         closes[:split_index],
         volumes[:split_index]
     )
@@ -425,7 +483,7 @@ async def backtest_stock(symbol: str, threshold: int = 75):
         historical_closes = closes[:i + 1]
         historical_volumes = volumes[:i + 1]
 
-        score = calculate_backtest_score_volume_test(
+        score = calculate_backtest_score_rsi_test(
             historical_closes,
             historical_volumes
         )
