@@ -650,7 +650,11 @@ async def backtest_stock(
     }
 
 @app.get("/backtest-all")
-async def backtest_all(threshold: int = 75):
+async def backtest_all(
+    threshold: int = 75,
+    start_date: str = None,
+    end_date: str = None
+):
     results = []
 
     for group_start in range(0, len(BACKTEST_WATCHLIST), 3):
