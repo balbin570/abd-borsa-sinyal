@@ -442,6 +442,7 @@ async def backtest_stock(symbol: str, threshold: int = 75):
     
     values = list(reversed(data["values"]))
 
+    dates = [item["datetime"] for item in values]
     closes = [float(item["close"]) for item in values]
     opens = [float(item["open"]) for item in values]
     volumes = [float(item["volume"]) for item in values]
