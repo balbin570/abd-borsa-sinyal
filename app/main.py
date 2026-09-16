@@ -460,10 +460,10 @@ async def backtest_stock(symbol: str, threshold: int = 75):
 async def backtest_all(threshold: int = 75):
     results = []
 
-    for group_start in range(0, len(BACKTEST_WATCHLIST), 4):
+    for group_start in range(0, len(BACKTEST_WATCHLIST), 3):
 
         group = BACKTEST_WATCHLIST[
-            group_start:group_start + 4
+            group_start:group_start + 3
         ]
 
         for symbol in group:
