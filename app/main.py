@@ -281,7 +281,7 @@ async def backtest_stock(symbol: str, threshold: int = 75):
     last_signal_index = -999
 
     # Out-of-sample test için veriyi iki döneme ayır
-    split_index = int(len(closes) * 0.70)
+    split_index = int(len(closes) * 0.30)
 
     previous_score = calculate_backtest_score(
         closes[:split_index],
