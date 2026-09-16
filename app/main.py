@@ -472,6 +472,8 @@ async def backtest_stock(symbol: str, threshold: int = 75):
     # son 20 gün ise ileri performansı ölçmek için ayrılıyor.
     for i in range(split_index, len(closes) - 20):
 
+        signal_date = dates[i]
+        
         baseline_entry_price = opens[i + 1]
 
         baseline_return_20d = (
