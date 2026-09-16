@@ -283,6 +283,11 @@ async def backtest_stock(symbol: str, threshold: int = 75):
     # Out-of-sample test için veriyi iki döneme ayır
     split_index = int(len(closes) * 0.70)
 
+    previous_score = calculate_backtest_score(
+        closes[:split_index],
+        volumes[:split_index]
+    )
+
     # İlk 60 gün indikatör hesaplamak için,
     # son 20 gün ise ileri performansı ölçmek için ayrılıyor.
     for i in range(split_index, len(closes) - 20):
