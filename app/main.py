@@ -668,6 +668,8 @@ async def backtest_all(
                 result = await backtest_stock(
                     symbol,
                     threshold=threshold
+                    start_date=start_date,
+                    end_date=end_date
                 )
 
                 results.append({
