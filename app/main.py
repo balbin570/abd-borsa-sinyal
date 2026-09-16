@@ -448,6 +448,15 @@ async def backtest_stock(
     values = list(reversed(data["values"]))
 
     dates = [item["datetime"] for item in values]
+    print(
+    symbol,
+    "BACKTEST DATA:",
+    dates[0],
+    "->",
+    dates[-1],
+    "COUNT:",
+    len(dates)
+    )
     closes = [float(item["close"]) for item in values]
     opens = [float(item["open"]) for item in values]
     volumes = [float(item["volume"]) for item in values]
