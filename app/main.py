@@ -462,7 +462,7 @@ async def backtest_stock(symbol: str, threshold: int = 75):
     # Out-of-sample test için veriyi iki döneme ayır
     split_index = int(len(closes) * 0.30)
 
-   previous_score = calculate_backtest_score_momentum_test(
+    previous_score = calculate_backtest_score_momentum_test(
         closes[:split_index],
         volumes[:split_index]
     )
