@@ -478,13 +478,7 @@ async def backtest_stock(
     for i in range(split_index, len(closes) - 20):
 
         signal_date = dates[i]
-
-        if start_date and signal_date < start_date:
-            continue
-
-        if end_date and signal_date > end_date:
-            continue
-        
+      
         baseline_entry_price = opens[i + 1]
 
         baseline_return_20d = (
