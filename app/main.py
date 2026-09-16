@@ -393,7 +393,12 @@ BACKTEST_WATCHLIST = [
 ]
 
 @app.get("/backtest/{symbol}")
-async def backtest_stock(symbol: str, threshold: int = 75):
+async def backtest_stock(
+    symbol: str,
+    threshold: int = 75,
+    start_date: str = None,
+    end_date: str = None
+):
     if not TWELVE_DATA_API_KEY:
         raise HTTPException(
             status_code=500,
