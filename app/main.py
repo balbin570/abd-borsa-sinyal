@@ -228,7 +228,7 @@ async def backtest_stock(symbol: str, threshold: int = 75):
     params = {
         "symbol": symbol,
         "interval": "1day",
-        "outputsize": 300,
+        "outputsize": 1000,
         "apikey": TWELVE_DATA_API_KEY
     }
 
@@ -242,7 +242,7 @@ async def backtest_stock(symbol: str, threshold: int = 75):
     spy_params = {
         "symbol": "SPY",
         "interval": "1day",
-        "outputsize": 300,
+        "outputsize": 1000,
         "apikey": TWELVE_DATA_API_KEY
     }
 
