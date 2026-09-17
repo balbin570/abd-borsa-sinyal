@@ -510,6 +510,7 @@ async def backtest_stock(
     for i in range(split_index, len(closes) - 20):
 
         signal_date = dates[i]
+        exit_date_20d = dates[i + 20]
       
         baseline_entry_price = opens[i + 1]
 
@@ -520,7 +521,7 @@ async def backtest_stock(
 
         if (
             (not start_date or signal_date >= start_date)
-            and (not end_date or signal_date <= end_date)
+            and (not end_date or exit_date_20d <= end_date)
         ):
             all_forward_returns_20d.append(
                 baseline_return_20d
