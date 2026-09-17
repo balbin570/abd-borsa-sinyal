@@ -444,6 +444,9 @@ async def backtest_stock(
 
     url = "https://api.twelvedata.com/time_series"
 
+    if symbol in STOCK_CACHE:
+    data = STOCK_CACHE[symbol]
+else:
     params = {
         "symbol": symbol,
         "interval": "1day",
@@ -456,8 +459,13 @@ async def backtest_stock(
         data = response.json()
 
     if "values" not in data:
-        raise HTTPException(status_code=400, detail=data)
+        raise HTTPException(
+            status_code=400,
+            detail=data
+        )
 
+    STOCK_CACHE[symbol] = data
+    
     spy_values = await get_spy_data()
     
     values = list(reversed(data["values"]))
