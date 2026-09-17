@@ -685,6 +685,8 @@ async def backtest_all(
 ):
     results = []
 
+    await get_spy_data()
+
     for group_start in range(0, len(BACKTEST_WATCHLIST), 3):
 
         group = BACKTEST_WATCHLIST[
