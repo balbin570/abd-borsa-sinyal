@@ -772,9 +772,6 @@ async def backtest_all(
                     "error": str(e)
                 })
 
-        if group_start + 3 < len(BACKTEST_WATCHLIST):
-            await asyncio.sleep(10)
-
     successful = [
         item for item in results
         if "error" not in item
