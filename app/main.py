@@ -707,6 +707,8 @@ async def backtest_all(
                     end_date=end_date
                 )
 
+                # Tüm hisselerin tüm sinyallerinin
+                # 20 günlük getirilerini tek havuzda topluyoruz.
                 if "signals" in result:
                     all_signal_returns_20d.extend(
                         item["return_20d"]
@@ -714,49 +716,51 @@ async def backtest_all(
                     )
 
                 results.append({
-    "symbol": symbol,
-    "signal_count": result.get("signal_count", 0),
+                    "symbol": symbol,
+                    "signal_count": result.get(
+                        "signal_count", 0
+                    ),
 
-    "average_return_5d": result.get(
-        "average_return_5d", 0
-    ),
+                    "average_return_5d": result.get(
+                        "average_return_5d", 0
+                    ),
 
-    "average_return_10d": result.get(
-        "average_return_10d", 0
-    ),
+                    "average_return_10d": result.get(
+                        "average_return_10d", 0
+                    ),
 
-    "average_return_20d": result.get(
-        "average_return_20d", 0
-    ),
+                    "average_return_20d": result.get(
+                        "average_return_20d", 0
+                    ),
 
-    "median_return_20d": result.get(
-        "median_return_20d", 0
-    ),                
+                    "median_return_20d": result.get(
+                        "median_return_20d", 0
+                    ),
 
-    "baseline_average_return_20d": result.get(
-        "baseline_average_return_20d", 0
-    ),
+                    "baseline_average_return_20d": result.get(
+                        "baseline_average_return_20d", 0
+                    ),
 
-    "signal_advantage_20d": result.get(
-        "signal_advantage_20d", 0
-    ),
-                    
-    "win_rate_20d": result.get(
-        "win_rate_20d", 0
-    ),
+                    "signal_advantage_20d": result.get(
+                        "signal_advantage_20d", 0
+                    ),
 
-    "average_spy_return_20d": result.get(
-        "average_spy_return_20d", 0
-    ),
+                    "win_rate_20d": result.get(
+                        "win_rate_20d", 0
+                    ),
 
-    "average_excess_return_20d": result.get(
-        "average_excess_return_20d", 0
-    ),
+                    "average_spy_return_20d": result.get(
+                        "average_spy_return_20d", 0
+                    ),
 
-    "beat_spy_rate_20d": result.get(
-        "beat_spy_rate_20d", 0
-    )
-})
+                    "average_excess_return_20d": result.get(
+                        "average_excess_return_20d", 0
+                    ),
+
+                    "beat_spy_rate_20d": result.get(
+                        "beat_spy_rate_20d", 0
+                    )
+                })
 
             except Exception as e:
                 results.append({
@@ -779,43 +783,52 @@ async def backtest_all(
     )
 
     if total_signals > 0:
+
         weighted_5d = sum(
-            item["average_return_5d"] * item["signal_count"]
+            item["average_return_5d"]
+            * item["signal_count"]
             for item in successful
         ) / total_signals
 
         weighted_10d = sum(
-            item["average_return_10d"] * item["signal_count"]
+            item["average_return_10d"]
+            * item["signal_count"]
             for item in successful
         ) / total_signals
 
         weighted_20d = sum(
-            item["average_return_20d"] * item["signal_count"]
+            item["average_return_20d"]
+            * item["signal_count"]
             for item in successful
         ) / total_signals
 
         weighted_signal_advantage_20d = sum(
-            item["signal_advantage_20d"] * item["signal_count"]
+            item["signal_advantage_20d"]
+            * item["signal_count"]
             for item in successful
         ) / total_signals
 
         weighted_win_rate = sum(
-            item["win_rate_20d"] * item["signal_count"]
+            item["win_rate_20d"]
+            * item["signal_count"]
             for item in successful
         ) / total_signals
 
         weighted_spy_20d = sum(
-            item["average_spy_return_20d"] * item["signal_count"]
+            item["average_spy_return_20d"]
+            * item["signal_count"]
             for item in successful
         ) / total_signals
 
         weighted_excess_20d = sum(
-            item["average_excess_return_20d"] * item["signal_count"]
+            item["average_excess_return_20d"]
+            * item["signal_count"]
             for item in successful
         ) / total_signals
 
         weighted_beat_spy_rate = sum(
-            item["beat_spy_rate_20d"] * item["signal_count"]
+            item["beat_spy_rate_20d"]
+            * item["signal_count"]
             for item in successful
         ) / total_signals
 
@@ -829,6 +842,17 @@ async def backtest_all(
         weighted_excess_20d = 0
         weighted_beat_spy_rate = 0
 
+    # Gerçek genel medyan:
+    # Hisse medyanlarının medyanını almıyoruz.
+    # 20 hissedeki bütün sinyal getirilerinin
+    # medyanını hesaplıyoruz.
+    if all_signal_returns_20d:
+        overall_median_20d = statistics.median(
+            all_signal_returns_20d
+        )
+    else:
+        overall_median_20d = 0
+
     results = sorted(
         results,
         key=lambda x: x.get(
@@ -841,30 +865,43 @@ async def backtest_all(
         "threshold": threshold,
         "stock_count": len(BACKTEST_WATCHLIST),
         "total_signals": total_signals,
+
         "overall_average_return_5d": round(
             weighted_5d, 2
         ),
+
         "overall_average_return_10d": round(
             weighted_10d, 2
         ),
+
         "overall_average_return_20d": round(
             weighted_20d, 2
         ),
+
+        "overall_median_return_20d": round(
+            overall_median_20d, 2
+        ),
+
         "overall_signal_advantage_20d": round(
             weighted_signal_advantage_20d, 2
         ),
+
         "overall_win_rate_20d": round(
             weighted_win_rate, 1
         ),
+
         "overall_average_spy_return_20d": round(
             weighted_spy_20d, 2
-        ),        
+        ),
+
         "overall_average_excess_return_20d": round(
             weighted_excess_20d, 2
         ),
+
         "overall_beat_spy_rate_20d": round(
-            weighted_beat_spy_rate, 1 
+            weighted_beat_spy_rate, 1
         ),
+
         "results": results
     }
 
