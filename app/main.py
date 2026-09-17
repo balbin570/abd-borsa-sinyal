@@ -1219,3 +1219,209 @@ async def send_strong_signals():
         "count": len(results),
         "symbols": [item["symbol"] for item in results]
     }
+
+@app.get("/backtest-monthly")
+async def backtest_monthly(
+    year: int,
+    threshold: int = 75
+):
+    monthly_results = []
+
+    for month in range(1, 13):
+
+        # Ayın ilk günü
+        start_date = f"{year}-{month:02d}-01"
+
+        # Ayın son gününü hesapla
+        if month == 12:
+            next_year = year + 1
+            next_month = 1
+        else:
+            next_year = year
+            next_month = month + 1
+
+        from datetime import date, timedelta
+
+        next_month_first_day = date(
+            next_year,
+            next_month,
+            1
+        )
+
+        month_last_day = (
+            next_month_first_day - timedelta(days=1)
+        )
+
+        end_date = month_last_day.isoformat()
+
+        results = []
+        all_signal_returns_20d = []
+
+        # 20 hisselik mevcut backtest listesini kullan
+        for group_start in range(
+            0,
+            len(BACKTEST_WATCHLIST),
+            3
+        ):
+            group = BACKTEST_WATCHLIST[
+                group_start:group_start + 3
+            ]
+
+            for symbol in group:
+                try:
+                    result = await backtest_stock(
+                        symbol,
+                        threshold,
+                        start_date,
+                        end_date
+                    )
+
+                    results.append(result)
+
+                    if "signals" in result:
+                        all_signal_returns_20d.extend(
+                            item["return_20d"]
+                            for item in result["signals"]
+                        )
+
+                except Exception as e:
+                    results.append({
+                        "symbol": symbol,
+                        "error": str(e)
+                    })
+
+            # Cache sayesinde çoğu çağrıda API kredisi
+            # kullanılmayacak; ilk veri yüklemesinde kısa bekleme.
+            if (
+                group_start + 3
+                < len(BACKTEST_WATCHLIST)
+            ):
+                await asyncio.sleep(10)
+
+        successful = [
+            item for item in results
+            if "error" not in item
+            and item.get("signal_count", 0) > 0
+        ]
+
+        total_signals = sum(
+            item["signal_count"]
+            for item in successful
+        )
+
+        if total_signals > 0:
+
+            def weighted_average(field):
+                return sum(
+                    item[field] * item["signal_count"]
+                    for item in successful
+                ) / total_signals
+
+            avg_5d = weighted_average(
+                "average_return_5d"
+            )
+
+            avg_10d = weighted_average(
+                "average_return_10d"
+            )
+
+            avg_20d = weighted_average(
+                "average_return_20d"
+            )
+
+            advantage_20d = weighted_average(
+                "signal_advantage_20d"
+            )
+
+            win_rate = weighted_average(
+                "win_rate_20d"
+            )
+
+            spy_return = weighted_average(
+                "average_spy_return_20d"
+            )
+
+            excess_return = weighted_average(
+                "average_excess_return_20d"
+            )
+
+            beat_spy_rate = weighted_average(
+                "beat_spy_rate_20d"
+            )
+
+            median_20d = statistics.median(
+                all_signal_returns_20d
+            ) if all_signal_returns_20d else 0
+
+        else:
+            avg_5d = 0
+            avg_10d = 0
+            avg_20d = 0
+            advantage_20d = 0
+            win_rate = 0
+            spy_return = 0
+            excess_return = 0
+            beat_spy_rate = 0
+            median_20d = 0
+
+        monthly_results.append({
+            "month": f"{year}-{month:02d}",
+            "signal_count": total_signals,
+            "average_return_5d": round(
+                avg_5d, 2
+            ),
+            "average_return_10d": round(
+                avg_10d, 2
+            ),
+            "average_return_20d": round(
+                avg_20d, 2
+            ),
+            "median_return_20d": round(
+                median_20d, 2
+            ),
+            "signal_advantage_20d": round(
+                advantage_20d, 2
+            ),
+            "win_rate_20d": round(
+                win_rate, 1
+            ),
+            "average_spy_return_20d": round(
+                spy_return, 2
+            ),
+            "average_excess_return_20d": round(
+                excess_return, 2
+            ),
+            "beat_spy_rate_20d": round(
+                beat_spy_rate, 1
+            )
+        })
+
+    positive_months = sum(
+        1
+        for item in monthly_results
+        if item["average_return_20d"] > 0
+    )
+
+    positive_excess_months = sum(
+        1
+        for item in monthly_results
+        if item["average_excess_return_20d"] > 0
+    )
+
+    months_with_signals = sum(
+        1
+        for item in monthly_results
+        if item["signal_count"] > 0
+    )
+
+    return {
+        "year": year,
+        "threshold": threshold,
+        "stock_count": len(BACKTEST_WATCHLIST),
+        "months_with_signals": months_with_signals,
+        "positive_return_months": positive_months,
+        "positive_excess_return_months": (
+            positive_excess_months
+        ),
+        "months": monthly_results
+    }
