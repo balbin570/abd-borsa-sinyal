@@ -590,14 +590,10 @@ async def backtest_stock(
                 )
             })
 
-                last_signal_index = i
-
-        previous_score = score
-
             last_signal_index = i
 
         previous_score = score
-        
+                 
     if not signals:
         avg_baseline_20d = (
             sum(all_forward_returns_20d) / len(all_forward_returns_20d)
