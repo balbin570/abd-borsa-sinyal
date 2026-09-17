@@ -578,14 +578,21 @@ async def backtest_stock(
             signals.append({
                 "signal_date": values[i]["datetime"],
                 "entry_date": entry_date,
+                "exit_date": values[i + 20]["datetime"],
                 "entry_price": round(entry_price, 2),
                 "score": score,
                 "return_5d": round(return_5d, 2),
                 "return_10d": round(return_10d, 2),
                 "return_20d": round(return_20d, 2),
                 "spy_return_20d": round(spy_return_20d, 2),
-                "excess_return_20d": round(excess_return_20d, 2)
+                "excess_return_20d": round(
+                    excess_return_20d, 2
+                )
             })
+
+            last_signal_index = i
+
+        previous_score = score
 
             last_signal_index = i
 
