@@ -457,27 +457,7 @@ async def backtest_stock(
     if "values" not in data:
         raise HTTPException(status_code=400, detail=data)
 
-    spy_params = {
-        "symbol": "SPY",
-        "interval": "1day",
-        "outputsize": 1000,
-        "apikey": TWELVE_DATA_API_KEY
-    }
-
-    async with httpx.AsyncClient(timeout=20) as client:
-        spy_response = await client.get(
-            url,
-            params=spy_params
-        )
-        spy_data = spy_response.json()
-
-    if "values" not in spy_data:
-        raise HTTPException(
-            status_code=400,
-            detail=spy_data
-        )
-
-    spy_values = list(reversed(spy_data["values"]))
+    spy_values = await get_spy_data()
     
     values = list(reversed(data["values"]))
 
