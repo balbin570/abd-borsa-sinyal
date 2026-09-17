@@ -707,6 +707,12 @@ async def backtest_all(
                     end_date=end_date
                 )
 
+                if "signals" in result:
+                    all_signal_returns_20d.extend(
+                        item["return_20d"]
+                        for item in result["signals"]
+                    )
+
                 results.append({
     "symbol": symbol,
     "signal_count": result.get("signal_count", 0),
