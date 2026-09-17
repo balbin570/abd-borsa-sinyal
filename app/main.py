@@ -6,6 +6,8 @@ from pydantic import BaseModel
 import httpx
 
 app = FastAPI(title="ABD Borsa Sinyal", version="2.0")
+SPY_CACHE = None
+SPY_CACHE_DATE = None
 
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
