@@ -590,7 +590,7 @@ async def backtest_stock(
                 )
             })
 
-            last_signal_index = i
+                last_signal_index = i
 
         previous_score = score
 
