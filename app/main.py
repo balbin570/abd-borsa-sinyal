@@ -688,6 +688,7 @@ async def backtest_all(
     end_date: str = None
 ):
     results = []
+    all_signal_returns_20d = []
 
     await get_spy_data()
 
