@@ -518,9 +518,13 @@ async def backtest_stock(
             / baseline_entry_price
         ) * 100
 
-        all_forward_returns_20d.append(
-            baseline_return_20d
-        )
+        if (
+            (not start_date or signal_date >= start_date)
+            and (not end_date or signal_date <= end_date)
+        ):
+            all_forward_returns_20d.append(
+                baseline_return_20d
+            )
 
         historical_closes = closes[:i + 1]
         historical_volumes = volumes[:i + 1]
