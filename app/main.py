@@ -394,6 +394,38 @@ BACKTEST_WATCHLIST = [
     "AMAT", "PANW", "CRWD", "LRCX", "KLAC"
 ]
 
+async def get_spy_data():
+    global SPY_CACHE
+
+    if SPY_CACHE is not None:
+        return SPY_CACHE
+
+    url = "https://api.twelvedata.com/time_series"
+
+    spy_params = {
+        "symbol": "SPY",
+        "interval": "1day",
+        "outputsize": 1000,
+        "apikey": TWELVE_DATA_API_KEY
+    }
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        spy_response = await client.get(
+            url,
+            params=spy_params
+        )
+        spy_data = spy_response.json()
+
+    if "values" not in spy_data:
+        raise HTTPException(
+            status_code=400,
+            detail=spy_data
+        )
+
+    SPY_CACHE = list(reversed(spy_data["values"]))
+
+    return SPY_CACHE
+
 @app.get("/backtest/{symbol}")
 async def backtest_stock(
     symbol: str,
