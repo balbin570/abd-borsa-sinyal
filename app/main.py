@@ -445,26 +445,26 @@ async def backtest_stock(
     url = "https://api.twelvedata.com/time_series"
 
     if symbol in STOCK_CACHE:
-    data = STOCK_CACHE[symbol]
-else:
-    params = {
-        "symbol": symbol,
-        "interval": "1day",
-        "outputsize": 1000,
-        "apikey": TWELVE_DATA_API_KEY
-    }
+        data = STOCK_CACHE[symbol]
+    else:
+        params = {
+            "symbol": symbol,
+            "interval": "1day",
+            "outputsize": 1000,
+            "apikey": TWELVE_DATA_API_KEY
+        }
 
-    async with httpx.AsyncClient(timeout=20) as client:
-        response = await client.get(url, params=params)
-        data = response.json()
+        async with httpx.AsyncClient(timeout=20) as client:
+            response = await client.get(url, params=params)
+            data = response.json()
 
-    if "values" not in data:
-        raise HTTPException(
-            status_code=400,
-            detail=data
-        )
+        if "values" not in data:
+            raise HTTPException(
+                status_code=400,
+                detail=data
+            )
 
-    STOCK_CACHE[symbol] = data
+        STOCK_CACHE[symbol] = data
     
     spy_values = await get_spy_data()
     
@@ -472,13 +472,13 @@ else:
 
     dates = [item["datetime"] for item in values]
     print(
-    symbol,
-    "BACKTEST DATA:",
-    dates[0],
-    "->",
-    dates[-1],
-    "COUNT:",
-    len(dates)
+        symbol,
+        "BACKTEST DATA:",
+        dates[0],
+        "->",
+        dates[-1],
+        "COUNT:",
+        len(dates)
     )
     closes = [float(item["close"]) for item in values]
     opens = [float(item["open"]) for item in values]
