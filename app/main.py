@@ -1217,3 +1217,248 @@ async def send_strong_signals():
         "symbols": [item["symbol"] for item in results]
     }
 
+@app.get("/backtest-monthly")
+async def backtest_monthly(
+    year: int,
+    threshold: int = 75
+):
+    from datetime import date
+
+    # Bütün yılı tek seferde kapsıyoruz.
+    start_date = f"{year}-01-01"
+    end_date = f"{year}-12-31"
+
+    # Her ay için ham sinyalleri burada toplayacağız.
+    monthly_signals = {
+        month: []
+        for month in range(1, 13)
+    }
+
+    errors = []
+
+    # SPY verisini bir kez cache'e al.
+    await get_spy_data()
+
+    # Her hisse yalnızca BİR KEZ backtest ediliyor.
+    for symbol in BACKTEST_WATCHLIST:
+        try:
+            result = await backtest_stock(
+                symbol,
+                threshold=threshold,
+                start_date=start_date,
+                end_date=end_date
+            )
+
+            for signal in result.get("signals", []):
+
+                signal_date = signal.get("signal_date")
+
+                if not signal_date:
+                    continue
+
+                try:
+                    month = int(
+                        signal_date.split("-")[1]
+                    )
+                except Exception:
+                    continue
+
+                if 1 <= month <= 12:
+                    monthly_signals[month].append(
+                        signal
+                    )
+
+        except Exception as e:
+            errors.append({
+                "symbol": symbol,
+                "error": str(e)
+            })
+
+    monthly_results = []
+
+    for month in range(1, 13):
+
+        signals = monthly_signals[month]
+        signal_count = len(signals)
+
+        if signal_count > 0:
+
+            returns_5d = [
+                item["return_5d"]
+                for item in signals
+            ]
+
+            returns_10d = [
+                item["return_10d"]
+                for item in signals
+            ]
+
+            returns_20d = [
+                item["return_20d"]
+                for item in signals
+            ]
+
+            spy_returns_20d = [
+                item["spy_return_20d"]
+                for item in signals
+            ]
+
+            excess_returns_20d = [
+                item["excess_return_20d"]
+                for item in signals
+            ]
+
+            avg_5d = (
+                sum(returns_5d) / signal_count
+            )
+
+            avg_10d = (
+                sum(returns_10d) / signal_count
+            )
+
+            avg_20d = (
+                sum(returns_20d) / signal_count
+            )
+
+            median_20d = statistics.median(
+                returns_20d
+            )
+
+            avg_spy_20d = (
+                sum(spy_returns_20d)
+                / signal_count
+            )
+
+            avg_excess_20d = (
+                sum(excess_returns_20d)
+                / signal_count
+            )
+
+            winners = sum(
+                1
+                for value in returns_20d
+                if value > 0
+            )
+
+            win_rate = (
+                winners / signal_count
+            ) * 100
+
+            beat_spy = sum(
+                1
+                for item in signals
+                if item["return_20d"]
+                > item["spy_return_20d"]
+            )
+
+            beat_spy_rate = (
+                beat_spy / signal_count
+            ) * 100
+
+        else:
+            avg_5d = 0
+            avg_10d = 0
+            avg_20d = 0
+            median_20d = 0
+            avg_spy_20d = 0
+            avg_excess_20d = 0
+            win_rate = 0
+            beat_spy_rate = 0
+
+        monthly_results.append({
+            "month": f"{year}-{month:02d}",
+            "signal_count": signal_count,
+
+            "average_return_5d": round(
+                avg_5d, 2
+            ),
+
+            "average_return_10d": round(
+                avg_10d, 2
+            ),
+
+            "average_return_20d": round(
+                avg_20d, 2
+            ),
+
+            "median_return_20d": round(
+                median_20d, 2
+            ),
+
+            "win_rate_20d": round(
+                win_rate, 1
+            ),
+
+            "average_spy_return_20d": round(
+                avg_spy_20d, 2
+            ),
+
+            "average_excess_return_20d": round(
+                avg_excess_20d, 2
+            ),
+
+            "beat_spy_rate_20d": round(
+                beat_spy_rate, 1
+            )
+        })
+
+    months_with_signals = [
+        item
+        for item in monthly_results
+        if item["signal_count"] > 0
+    ]
+
+    positive_return_months = sum(
+        1
+        for item in months_with_signals
+        if item["average_return_20d"] > 0
+    )
+
+    positive_median_months = sum(
+        1
+        for item in months_with_signals
+        if item["median_return_20d"] > 0
+    )
+
+    positive_excess_months = sum(
+        1
+        for item in months_with_signals
+        if item["average_excess_return_20d"] > 0
+    )
+
+    total_signals = sum(
+        item["signal_count"]
+        for item in monthly_results
+    )
+
+    return {
+        "year": year,
+        "threshold": threshold,
+        "stock_count": len(
+            BACKTEST_WATCHLIST
+        ),
+
+        "total_signals": total_signals,
+
+        "months_with_signals": len(
+            months_with_signals
+        ),
+
+        "positive_return_months": (
+            positive_return_months
+        ),
+
+        "positive_median_months": (
+            positive_median_months
+        ),
+
+        "positive_excess_return_months": (
+            positive_excess_months
+        ),
+
+        "error_count": len(errors),
+
+        "errors": errors,
+
+        "months": monthly_results
+    }
