@@ -1770,3 +1770,315 @@ async def backtest_spy_regime(
 
         "errors": errors
     }
+
+@app.get("/backtest-spy-trend")
+async def backtest_spy_trend(
+    year: int,
+    threshold: int = 75,
+    end_date: str = None
+):
+    """
+    Mevcut backtest sinyallerini SPY EMA20 / EMA50 trendine göre
+    iki gruba ayırır.
+
+    STRONG_TREND = SPY EMA20 > SPY EMA50
+    WEAK_TREND   = SPY EMA20 <= SPY EMA50
+
+    Mevcut skor ve sinyal üretme mantığını değiştirmez.
+    """
+
+    start_date = f"{year}-01-01"
+
+    if end_date is None:
+        end_date = f"{year}-12-31"
+
+    # Mevcut cache üzerinden SPY verisini al
+    spy_values = await get_spy_data()
+
+    spy_dates = [
+        item["datetime"]
+        for item in spy_values
+    ]
+
+    spy_closes = [
+        float(item["close"])
+        for item in spy_values
+    ]
+
+    spy_index_by_date = {
+        date: index
+        for index, date in enumerate(spy_dates)
+    }
+
+    strong_trend_signals = []
+    weak_trend_signals = []
+    unavailable_signals = []
+
+    errors = []
+
+    # Twelve Data Free plan dakika limitini
+    # aşmamak için hisseleri gruplar halinde işle.
+    batch_size = 7
+
+    for group_start in range(
+        0,
+        len(BACKTEST_WATCHLIST),
+        batch_size
+    ):
+        group = BACKTEST_WATCHLIST[
+            group_start:group_start + batch_size
+        ]
+
+        for symbol in group:
+            try:
+                result = await backtest_stock(
+                    symbol,
+                    threshold=threshold,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+
+                for signal in result.get(
+                    "signals", []
+                ):
+                    signal_date = signal.get(
+                        "signal_date"
+                    )
+
+                    if not signal_date:
+                        continue
+
+                    spy_index = spy_index_by_date.get(
+                        signal_date
+                    )
+
+                    # EMA50 için en az 50 kapanış gerekir.
+                    if (
+                        spy_index is None
+                        or spy_index < 49
+                    ):
+                        unavailable_signals.append(
+                            signal
+                        )
+                        continue
+
+                    spy_history = spy_closes[
+                        :spy_index + 1
+                    ]
+
+                    spy_close = spy_history[-1]
+
+                    spy_ema20 = calculate_ema(
+                        spy_history,
+                        20
+                    )
+
+                    spy_ema50 = calculate_ema(
+                        spy_history,
+                        50
+                    )
+
+                    enriched_signal = {
+                        **signal,
+
+                        "spy_close_at_signal": round(
+                            spy_close,
+                            2
+                        ),
+
+                        "spy_ema20_at_signal": round(
+                            spy_ema20,
+                            2
+                        ),
+
+                        "spy_ema50_at_signal": round(
+                            spy_ema50,
+                            2
+                        ),
+
+                        "ema20_vs_ema50_percent": round(
+                            (
+                                (
+                                    spy_ema20
+                                    - spy_ema50
+                                )
+                                / spy_ema50
+                            )
+                            * 100,
+                            2
+                        )
+                    }
+
+                    if spy_ema20 > spy_ema50:
+                        strong_trend_signals.append(
+                            enriched_signal
+                        )
+                    else:
+                        weak_trend_signals.append(
+                            enriched_signal
+                        )
+
+            except Exception as e:
+                errors.append({
+                    "symbol": symbol,
+                    "error": str(e)
+                })
+
+        if (
+            group_start + batch_size
+            < len(BACKTEST_WATCHLIST)
+        ):
+            await asyncio.sleep(60)
+
+    def summarize_trend(signals):
+
+        signal_count = len(signals)
+
+        if signal_count == 0:
+            return {
+                "signal_count": 0,
+                "average_return_5d": 0,
+                "average_return_10d": 0,
+                "average_return_20d": 0,
+                "median_return_20d": 0,
+                "win_rate_20d": 0,
+                "average_spy_return_20d": 0,
+                "average_excess_return_20d": 0,
+                "beat_spy_rate_20d": 0
+            }
+
+        returns_5d = [
+            item["return_5d"]
+            for item in signals
+        ]
+
+        returns_10d = [
+            item["return_10d"]
+            for item in signals
+        ]
+
+        returns_20d = [
+            item["return_20d"]
+            for item in signals
+        ]
+
+        spy_returns_20d = [
+            item["spy_return_20d"]
+            for item in signals
+        ]
+
+        excess_returns_20d = [
+            item["excess_return_20d"]
+            for item in signals
+        ]
+
+        win_count = sum(
+            1
+            for value in returns_20d
+            if value > 0
+        )
+
+        beat_spy_count = sum(
+            1
+            for value in excess_returns_20d
+            if value > 0
+        )
+
+        return {
+            "signal_count": signal_count,
+
+            "average_return_5d": round(
+                sum(returns_5d)
+                / signal_count,
+                2
+            ),
+
+            "average_return_10d": round(
+                sum(returns_10d)
+                / signal_count,
+                2
+            ),
+
+            "average_return_20d": round(
+                sum(returns_20d)
+                / signal_count,
+                2
+            ),
+
+            "median_return_20d": round(
+                statistics.median(
+                    returns_20d
+                ),
+                2
+            ),
+
+            "win_rate_20d": round(
+                win_count
+                / signal_count
+                * 100,
+                1
+            ),
+
+            "average_spy_return_20d": round(
+                sum(spy_returns_20d)
+                / signal_count,
+                2
+            ),
+
+            "average_excess_return_20d": round(
+                sum(excess_returns_20d)
+                / signal_count,
+                2
+            ),
+
+            "beat_spy_rate_20d": round(
+                beat_spy_count
+                / signal_count
+                * 100,
+                1
+            )
+        }
+
+    strong_summary = summarize_trend(
+        strong_trend_signals
+    )
+
+    weak_summary = summarize_trend(
+        weak_trend_signals
+    )
+
+    classified_signals = (
+        len(strong_trend_signals)
+        + len(weak_trend_signals)
+    )
+
+    return {
+        "year": year,
+        "threshold": threshold,
+        "start_date": start_date,
+        "end_date": end_date,
+
+        "stock_count": len(
+            BACKTEST_WATCHLIST
+        ),
+
+        "total_classified_signals":
+            classified_signals,
+
+        "strong_trend_definition":
+            "SPY EMA20 > SPY EMA50",
+
+        "weak_trend_definition":
+            "SPY EMA20 <= SPY EMA50",
+
+        "strong_trend": strong_summary,
+
+        "weak_trend": weak_summary,
+
+        "unavailable_signal_count":
+            len(unavailable_signals),
+
+        "error_count": len(errors),
+
+        "errors": errors
+    }
