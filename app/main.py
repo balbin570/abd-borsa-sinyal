@@ -1239,40 +1239,62 @@ async def backtest_monthly(
     # SPY verisini bir kez cache'e al.
     await get_spy_data()
 
-    # Her hisse yalnızca BİR KEZ backtest ediliyor.
-    for symbol in BACKTEST_WATCHLIST:
-        try:
-            result = await backtest_stock(
-                symbol,
-                threshold=threshold,
-                start_date=start_date,
-                end_date=end_date
-            )
+        # Twelve Data Free planındaki dakika limitini
+    # aşmamak için hisseleri 7'li gruplar halinde işliyoruz.
+    batch_size = 7
 
-            for signal in result.get("signals", []):
+    for group_start in range(
+        0,
+        len(BACKTEST_WATCHLIST),
+        batch_size
+    ):
+        group = BACKTEST_WATCHLIST[
+            group_start:group_start + batch_size
+        ]
 
-                signal_date = signal.get("signal_date")
+        for symbol in group:
+            try:
+                result = await backtest_stock(
+                    symbol,
+                    threshold=threshold,
+                    start_date=start_date,
+                    end_date=end_date
+                )
 
-                if not signal_date:
-                    continue
-
-                try:
-                    month = int(
-                        signal_date.split("-")[1]
+                for signal in result.get(
+                    "signals", []
+                ):
+                    signal_date = signal.get(
+                        "signal_date"
                     )
-                except Exception:
-                    continue
 
-                if 1 <= month <= 12:
-                    monthly_signals[month].append(
-                        signal
-                    )
+                    if not signal_date:
+                        continue
 
-        except Exception as e:
-            errors.append({
-                "symbol": symbol,
-                "error": str(e)
-            })
+                    try:
+                        month = int(
+                            signal_date.split("-")[1]
+                        )
+                    except Exception:
+                        continue
+
+                    if 1 <= month <= 12:
+                        monthly_signals[
+                            month
+                        ].append(signal)
+
+            except Exception as e:
+                errors.append({
+                    "symbol": symbol,
+                    "error": str(e)
+                })
+
+        # Son gruptan sonra beklemeye gerek yok.
+        if (
+            group_start + batch_size
+            < len(BACKTEST_WATCHLIST)
+        ):
+            await asyncio.sleep(60) 
 
     monthly_results = []
 
