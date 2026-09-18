@@ -4963,3 +4963,651 @@ async def v2_backtest(
         "signals":
             all_signals
     }
+
+# ============================================================
+# V2 STAGE 4
+# C1 DIAGNOSTIC ENGINE
+# ============================================================
+#
+# PURPOSE:
+# Diagnose WHY frozen V2-C1 performance changes by year.
+#
+# IMPORTANT:
+# - Does NOT modify C1 scoring.
+# - Does NOT create a new trading model.
+# - Uses the exact frozen C1 score.
+# - Evaluates 2024, 2025 and 2026 separately.
+# ============================================================
+
+
+def v2_diag_bucket(value, boundaries, labels):
+    for boundary, label in zip(boundaries, labels):
+        if value <= boundary:
+            return label
+    return labels[-1]
+
+
+def v2_diag_stats(rows):
+
+    if not rows:
+        return {
+            "count": 0
+        }
+
+    returns = [
+        x["return_20d"]
+        for x in rows
+    ]
+
+    excess = [
+        x["excess_return_20d"]
+        for x in rows
+    ]
+
+    return {
+        "count":
+            len(rows),
+
+        "average_return_20d":
+            round(
+                sum(returns) / len(returns),
+                2
+            ),
+
+        "median_return_20d":
+            round(
+                statistics.median(returns),
+                2
+            ),
+
+        "win_rate_20d":
+            round(
+                sum(
+                    1 for x in returns
+                    if x > 0
+                )
+                / len(returns)
+                * 100,
+                1
+            ),
+
+        "average_excess_return_20d":
+            round(
+                sum(excess) / len(excess),
+                2
+            ),
+
+        "median_excess_return_20d":
+            round(
+                statistics.median(excess),
+                2
+            ),
+
+        "beat_spy_rate_20d":
+            round(
+                sum(
+                    1 for x in excess
+                    if x > 0
+                )
+                / len(excess)
+                * 100,
+                1
+            )
+    }
+
+
+def v2_diag_group(rows, key_function):
+
+    groups = defaultdict(list)
+
+    for row in rows:
+        key = key_function(row)
+        groups[key].append(row)
+
+    return {
+        str(key): v2_diag_stats(group_rows)
+        for key, group_rows
+        in sorted(
+            groups.items(),
+            key=lambda x: str(x[0])
+        )
+    }
+
+
+@app.get("/v2/c1-diagnostics")
+async def v2_c1_diagnostics():
+
+    periods = [
+        (
+            "2024",
+            "2024-01-01",
+            "2024-12-31"
+        ),
+        (
+            "2025",
+            "2025-01-01",
+            "2025-12-31"
+        ),
+        (
+            "2026",
+            "2026-01-01",
+            "2026-08-15"
+        )
+    ]
+
+    all_year_results = {}
+
+    # --------------------------------------------------------
+    # Run the EXACT same frozen C1 model for each period.
+    # --------------------------------------------------------
+
+    for (
+        year_label,
+        start_date,
+        end_date
+    ) in periods:
+
+        result = await v2_backtest(
+            start_date=start_date,
+            end_date=end_date,
+            threshold=75
+        )
+
+        signals = result.get(
+            "signals",
+            []
+        )
+
+        # ----------------------------------------------------
+        # SCORE BUCKETS
+        # Does higher C1 score actually mean better outcome?
+        # ----------------------------------------------------
+
+        score_groups = v2_diag_group(
+            signals,
+            lambda x:
+                "75-79"
+                if x["score"] < 80
+                else (
+                    "80-84"
+                    if x["score"] < 85
+                    else (
+                        "85-89"
+                        if x["score"] < 90
+                        else "90-100"
+                    )
+                )
+        )
+
+        # ----------------------------------------------------
+        # DISTANCE FROM EMA20
+        # ----------------------------------------------------
+
+        distance_groups = v2_diag_group(
+            signals,
+            lambda x:
+                "Q1_very_low"
+                if x["features"]["distance_ema20"] <= -1.7830
+                else (
+                    "Q2_near"
+                    if x["features"]["distance_ema20"] <= 0.7691
+                    else (
+                        "Q3_above"
+                        if x["features"]["distance_ema20"] <= 3.6235
+                        else "Q4_extended"
+                    )
+                )
+        )
+
+        # ----------------------------------------------------
+        # RSI
+        # ----------------------------------------------------
+
+        rsi_groups = v2_diag_group(
+            signals,
+            lambda x:
+                "Q1_low"
+                if x["features"]["rsi14"] <= 40.2119
+                else (
+                    "Q2"
+                    if x["features"]["rsi14"] <= 54.3162
+                    else (
+                        "Q3"
+                        if x["features"]["rsi14"] <= 67.0387
+                        else "Q4_high"
+                    )
+                )
+        )
+
+        # ----------------------------------------------------
+        # MOMENTUM
+        # ----------------------------------------------------
+
+        momentum_groups = v2_diag_group(
+            signals,
+            lambda x:
+                "Q1_negative"
+                if x["features"]["momentum20"] <= -3.6834
+                else (
+                    "Q2"
+                    if x["features"]["momentum20"] <= 1.7306
+                    else (
+                        "Q3"
+                        if x["features"]["momentum20"] <= 7.8249
+                        else "Q4_high"
+                    )
+                )
+        )
+
+        # ----------------------------------------------------
+        # EMA20 VS EMA50
+        # ----------------------------------------------------
+
+        ema_trend_groups = v2_diag_group(
+            signals,
+            lambda x:
+                "Q1_weak"
+                if x["features"]["ema20_vs_ema50"] <= -0.7516
+                else (
+                    "Q2"
+                    if x["features"]["ema20_vs_ema50"] <= 1.3274
+                    else (
+                        "Q3"
+                        if x["features"]["ema20_vs_ema50"] <= 3.6626
+                        else "Q4_strong"
+                    )
+                )
+        )
+
+        # ----------------------------------------------------
+        # VOLUME
+        # ----------------------------------------------------
+
+        volume_groups = v2_diag_group(
+            signals,
+            lambda x:
+                "Q1_low"
+                if x["features"]["volume_ratio"] <= 0.7634
+                else (
+                    "Q2"
+                    if x["features"]["volume_ratio"] <= 0.9325
+                    else (
+                        "Q3"
+                        if x["features"]["volume_ratio"] <= 1.1784
+                        else "Q4_high"
+                    )
+                )
+        )
+
+        # ----------------------------------------------------
+        # MACD
+        # ----------------------------------------------------
+
+        macd_groups = v2_diag_group(
+            signals,
+            lambda x:
+                "Q1_negative_extreme"
+                if x["features"]["macd_histogram_pct"] <= -0.3933
+                else (
+                    "Q2"
+                    if x["features"]["macd_histogram_pct"] <= 0.0267
+                    else (
+                        "Q3"
+                        if x["features"]["macd_histogram_pct"] <= 0.4582
+                        else "Q4_positive_extreme"
+                    )
+                )
+        )
+
+        # ----------------------------------------------------
+        # RECOVERY COMBINATION COUNT
+        #
+        # How many of the three main recovery conditions
+        # are active at the same time?
+        # ----------------------------------------------------
+
+        def recovery_count(row):
+
+            count = 0
+
+            if (
+                row["features"]["distance_ema20"]
+                <= -1.7830
+            ):
+                count += 1
+
+            if (
+                row["features"]["rsi14"]
+                <= 40.2119
+            ):
+                count += 1
+
+            if (
+                row["features"]["momentum20"]
+                <= -3.6834
+            ):
+                count += 1
+
+            return str(count)
+
+        recovery_groups = v2_diag_group(
+            signals,
+            recovery_count
+        )
+
+        # ----------------------------------------------------
+        # MONTHLY PERFORMANCE
+        # Helps detect regime/time concentration.
+        # ----------------------------------------------------
+
+        monthly_groups = v2_diag_group(
+            signals,
+            lambda x:
+                x["signal_date"][:7]
+        )
+
+        # ----------------------------------------------------
+        # STOCK LEVEL
+        # Detect whether a few stocks dominate results.
+        # ----------------------------------------------------
+
+        stock_groups = v2_diag_group(
+            signals,
+            lambda x:
+                x["symbol"]
+        )
+
+        # ----------------------------------------------------
+        # BEST / WORST STOCKS BY AVERAGE EXCESS
+        # Only stocks with at least 3 signals.
+        # ----------------------------------------------------
+
+        stock_rankable = []
+
+        for symbol, stats in stock_groups.items():
+
+            if stats["count"] >= 3:
+
+                stock_rankable.append({
+                    "symbol":
+                        symbol,
+
+                    "count":
+                        stats["count"],
+
+                    "average_excess_return_20d":
+                        stats[
+                            "average_excess_return_20d"
+                        ],
+
+                    "median_excess_return_20d":
+                        stats[
+                            "median_excess_return_20d"
+                        ],
+
+                    "beat_spy_rate_20d":
+                        stats[
+                            "beat_spy_rate_20d"
+                        ]
+                })
+
+        stock_rankable.sort(
+            key=lambda x:
+                x["average_excess_return_20d"],
+            reverse=True
+        )
+
+        best_stocks = (
+            stock_rankable[:10]
+        )
+
+        worst_stocks = (
+            list(
+                reversed(
+                    stock_rankable[-10:]
+                )
+            )
+        )
+
+        # ----------------------------------------------------
+        # OUTLIER CHECK
+        #
+        # Compare full mean with trimmed mean.
+        # Removes top/bottom 5% excess-return observations.
+        # ----------------------------------------------------
+
+        excess_values = sorted(
+            [
+                x["excess_return_20d"]
+                for x in signals
+            ]
+        )
+
+        trimmed_mean_excess = None
+
+        if len(excess_values) >= 20:
+
+            trim_count = max(
+                1,
+                int(
+                    len(excess_values)
+                    * 0.05
+                )
+            )
+
+            trimmed = (
+                excess_values[
+                    trim_count:
+                    len(excess_values)
+                    - trim_count
+                ]
+            )
+
+            if trimmed:
+
+                trimmed_mean_excess = round(
+                    sum(trimmed)
+                    / len(trimmed),
+                    2
+                )
+
+        # ----------------------------------------------------
+        # TOP / BOTTOM OUTLIERS
+        # ----------------------------------------------------
+
+        sorted_signals = sorted(
+            signals,
+            key=lambda x:
+                x["excess_return_20d"],
+            reverse=True
+        )
+
+        top_outliers = [
+            {
+                "symbol":
+                    x["symbol"],
+
+                "signal_date":
+                    x["signal_date"],
+
+                "score":
+                    x["score"],
+
+                "return_20d":
+                    x["return_20d"],
+
+                "spy_return_20d":
+                    x["spy_return_20d"],
+
+                "excess_return_20d":
+                    x["excess_return_20d"]
+            }
+            for x in sorted_signals[:10]
+        ]
+
+        bottom_outliers = [
+            {
+                "symbol":
+                    x["symbol"],
+
+                "signal_date":
+                    x["signal_date"],
+
+                "score":
+                    x["score"],
+
+                "return_20d":
+                    x["return_20d"],
+
+                "spy_return_20d":
+                    x["spy_return_20d"],
+
+                "excess_return_20d":
+                    x["excess_return_20d"]
+            }
+            for x in sorted_signals[-10:]
+        ]
+
+        bottom_outliers.reverse()
+
+        # ----------------------------------------------------
+        # YEAR RESULT
+        # ----------------------------------------------------
+
+        all_year_results[
+            year_label
+        ] = {
+
+            "period": {
+                "start":
+                    start_date,
+
+                "end":
+                    end_date
+            },
+
+            "overall":
+                result.get(
+                    "summary",
+                    {}
+                ),
+
+            "trimmed_mean_excess_return_20d":
+                trimmed_mean_excess,
+
+            "score_buckets":
+                score_groups,
+
+            "distance_ema20_buckets":
+                distance_groups,
+
+            "rsi14_buckets":
+                rsi_groups,
+
+            "momentum20_buckets":
+                momentum_groups,
+
+            "ema20_vs_ema50_buckets":
+                ema_trend_groups,
+
+            "volume_ratio_buckets":
+                volume_groups,
+
+            "macd_histogram_buckets":
+                macd_groups,
+
+            "recovery_condition_count":
+                recovery_groups,
+
+            "monthly":
+                monthly_groups,
+
+            "best_stocks":
+                best_stocks,
+
+            "worst_stocks":
+                worst_stocks,
+
+            "top_outliers":
+                top_outliers,
+
+            "bottom_outliers":
+                bottom_outliers
+        }
+
+    # --------------------------------------------------------
+    # CROSS-YEAR SCORE COMPARISON
+    # --------------------------------------------------------
+
+    score_cross_year = {}
+
+    score_labels = [
+        "75-79",
+        "80-84",
+        "85-89",
+        "90-100"
+    ]
+
+    for score_label in score_labels:
+
+        score_cross_year[
+            score_label
+        ] = {}
+
+        for year in [
+            "2024",
+            "2025",
+            "2026"
+        ]:
+
+            year_bucket = (
+                all_year_results[
+                    year
+                ][
+                    "score_buckets"
+                ].get(
+                    score_label,
+                    {
+                        "count": 0
+                    }
+                )
+            )
+
+            score_cross_year[
+                score_label
+            ][year] = (
+                year_bucket
+            )
+
+    return {
+
+        "engine":
+            "V2 Stage 4",
+
+        "purpose":
+            "Frozen C1 diagnostic analysis",
+
+        "model":
+            V2_CANDIDATE_NAME,
+
+        "model_status":
+            "FROZEN",
+
+        "threshold":
+            75,
+
+        "universe_stock_count":
+            len(V2_UNIVERSE),
+
+        "diagnostic_note":
+            (
+                "No C1 weights or thresholds "
+                "were changed in this analysis."
+            ),
+
+        "score_cross_year":
+            score_cross_year,
+
+        "years":
+            all_year_results
+    }
