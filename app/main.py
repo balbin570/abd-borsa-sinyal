@@ -3562,3 +3562,615 @@ async def v2_feature_study(
         "features":
             feature_results
     }
+
+# ============================================================
+# V2 RESEARCH ENGINE - STAGE 2
+# MONTHLY FEATURE STABILITY
+# ============================================================
+
+from collections import defaultdict
+
+
+def v2_assign_quartile(value, q1, q2, q3):
+
+    if value <= q1:
+        return "Q1_low"
+    elif value <= q2:
+        return "Q2"
+    elif value <= q3:
+        return "Q3"
+    else:
+        return "Q4_high"
+
+
+def v2_monthly_group_summary(rows):
+
+    if not rows:
+        return {
+            "count": 0,
+            "average_return_20d": 0,
+            "median_return_20d": 0,
+            "average_excess_return_20d": 0,
+            "positive_return_rate": 0,
+            "beat_spy_rate": 0
+        }
+
+    returns = [
+        row["return_20d"]
+        for row in rows
+    ]
+
+    excess = [
+        row["excess_return_20d"]
+        for row in rows
+    ]
+
+    positive_count = sum(
+        1 for value in returns
+        if value > 0
+    )
+
+    beat_count = sum(
+        1 for value in excess
+        if value > 0
+    )
+
+    return {
+        "count":
+            len(rows),
+
+        "average_return_20d":
+            round(
+                sum(returns) / len(returns),
+                2
+            ),
+
+        "median_return_20d":
+            round(
+                statistics.median(returns),
+                2
+            ),
+
+        "average_excess_return_20d":
+            round(
+                sum(excess) / len(excess),
+                2
+            ),
+
+        "positive_return_rate":
+            round(
+                positive_count
+                / len(rows)
+                * 100,
+                1
+            ),
+
+        "beat_spy_rate":
+            round(
+                beat_count
+                / len(rows)
+                * 100,
+                1
+            )
+    }
+
+
+@app.get("/v2/monthly-feature-study")
+async def v2_monthly_feature_study(
+    start_date: str = "2023-01-01",
+    end_date: str = "2023-12-31"
+):
+
+    all_rows = []
+    errors = []
+
+    spy_values = await get_spy_data()
+
+    spy_by_date = {
+        item["datetime"]: {
+            "open": float(item["open"]),
+            "close": float(item["close"])
+        }
+        for item in spy_values
+    }
+
+    batch_size = 7
+
+    for group_start in range(
+        0,
+        len(V2_UNIVERSE),
+        batch_size
+    ):
+
+        group = V2_UNIVERSE[
+            group_start:
+            group_start + batch_size
+        ]
+
+        for symbol in group:
+
+            try:
+
+                # Cache yoksa mevcut backtest motoru
+                # hisse verisini yükler.
+                if symbol not in STOCK_CACHE:
+
+                    await backtest_stock(
+                        symbol,
+                        threshold=75
+                    )
+
+                data = STOCK_CACHE.get(symbol)
+
+                if (
+                    not data
+                    or "values" not in data
+                ):
+                    raise Exception(
+                        "Historical stock data unavailable"
+                    )
+
+                values = list(
+                    reversed(data["values"])
+                )
+
+                dates = [
+                    item["datetime"]
+                    for item in values
+                ]
+
+                closes = [
+                    float(item["close"])
+                    for item in values
+                ]
+
+                opens = [
+                    float(item["open"])
+                    for item in values
+                ]
+
+                volumes = [
+                    float(item["volume"])
+                    for item in values
+                ]
+
+                for i in range(
+                    60,
+                    len(closes) - 20,
+                    5
+                ):
+
+                    signal_date = dates[i]
+                    entry_date = dates[i + 1]
+                    exit_date = dates[i + 20]
+
+                    if (
+                        signal_date < start_date
+                        or exit_date > end_date
+                    ):
+                        continue
+
+                    if (
+                        entry_date not in spy_by_date
+                        or exit_date not in spy_by_date
+                    ):
+                        continue
+
+                    history_closes = closes[
+                        :i + 1
+                    ]
+
+                    history_volumes = volumes[
+                        :i + 1
+                    ]
+
+                    price = history_closes[-1]
+
+                    ema20 = calculate_ema(
+                        history_closes,
+                        20
+                    )
+
+                    ema50 = calculate_ema(
+                        history_closes,
+                        50
+                    )
+
+                    rsi14 = calculate_rsi(
+                        history_closes,
+                        14
+                    )
+
+                    (
+                        macd,
+                        macd_signal,
+                        macd_histogram
+                    ) = calculate_macd(
+                        history_closes
+                    )
+
+                    price_20_days_ago = (
+                        history_closes[-21]
+                    )
+
+                    momentum20 = (
+                        (
+                            price
+                            - price_20_days_ago
+                        )
+                        / price_20_days_ago
+                        * 100
+                    )
+
+                    previous_20_volumes = (
+                        history_volumes[-21:-1]
+                    )
+
+                    avg_volume20 = (
+                        sum(previous_20_volumes)
+                        / 20
+                    )
+
+                    if avg_volume20 > 0:
+                        volume_ratio = (
+                            history_volumes[-1]
+                            / avg_volume20
+                        )
+                    else:
+                        volume_ratio = 0
+
+                    distance_ema20 = (
+                        (
+                            price - ema20
+                        )
+                        / ema20
+                        * 100
+                    )
+
+                    ema20_vs_ema50 = (
+                        (
+                            ema20 - ema50
+                        )
+                        / ema50
+                        * 100
+                    )
+
+                    if price != 0:
+                        macd_histogram_pct = (
+                            macd_histogram
+                            / price
+                            * 100
+                        )
+                    else:
+                        macd_histogram_pct = 0
+
+                    entry_price = opens[i + 1]
+                    exit_price = closes[i + 20]
+
+                    return_20d = (
+                        (
+                            exit_price
+                            - entry_price
+                        )
+                        / entry_price
+                        * 100
+                    )
+
+                    spy_entry = (
+                        spy_by_date[
+                            entry_date
+                        ]["open"]
+                    )
+
+                    spy_exit = (
+                        spy_by_date[
+                            exit_date
+                        ]["close"]
+                    )
+
+                    spy_return_20d = (
+                        (
+                            spy_exit - spy_entry
+                        )
+                        / spy_entry
+                        * 100
+                    )
+
+                    excess_return_20d = (
+                        return_20d
+                        - spy_return_20d
+                    )
+
+                    all_rows.append({
+                        "symbol":
+                            symbol,
+
+                        "signal_date":
+                            signal_date,
+
+                        "month":
+                            signal_date[:7],
+
+                        "return_20d":
+                            return_20d,
+
+                        "excess_return_20d":
+                            excess_return_20d,
+
+                        "distance_ema20":
+                            distance_ema20,
+
+                        "ema20_vs_ema50":
+                            ema20_vs_ema50,
+
+                        "rsi14":
+                            rsi14,
+
+                        "momentum20":
+                            momentum20,
+
+                        "volume_ratio":
+                            volume_ratio,
+
+                        "macd_histogram_pct":
+                            macd_histogram_pct
+                    })
+
+            except Exception as e:
+
+                errors.append({
+                    "symbol": symbol,
+                    "error": str(e)
+                })
+
+        if (
+            group_start + batch_size
+            < len(V2_UNIVERSE)
+        ):
+            await asyncio.sleep(60)
+
+    features = [
+        "distance_ema20",
+        "ema20_vs_ema50",
+        "rsi14",
+        "momentum20",
+        "volume_ratio",
+        "macd_histogram_pct"
+    ]
+
+    feature_results = []
+
+    for feature in features:
+
+        usable = [
+            row
+            for row in all_rows
+            if row.get(feature) is not None
+        ]
+
+        feature_values = [
+            row[feature]
+            for row in usable
+        ]
+
+        if not feature_values:
+            continue
+
+        # Çok önemli:
+        # Quartile sınırlarını her ay yeniden hesaplamıyoruz.
+        # Bütün geliştirme dönemindeki sınırları sabitliyoruz.
+        q1 = v2_percentile(
+            feature_values,
+            0.25
+        )
+
+        q2 = v2_percentile(
+            feature_values,
+            0.50
+        )
+
+        q3 = v2_percentile(
+            feature_values,
+            0.75
+        )
+
+        monthly_groups = defaultdict(
+            lambda: {
+                "Q1_low": [],
+                "Q2": [],
+                "Q3": [],
+                "Q4_high": []
+            }
+        )
+
+        for row in usable:
+
+            quartile = v2_assign_quartile(
+                row[feature],
+                q1,
+                q2,
+                q3
+            )
+
+            monthly_groups[
+                row["month"]
+            ][quartile].append(row)
+
+        monthly_results = {}
+
+        q1_positive_excess_months = 0
+        q4_positive_excess_months = 0
+
+        q1_beat_spy_50_months = 0
+        q4_beat_spy_50_months = 0
+
+        q1_better_than_q4_months = 0
+        q4_better_than_q1_months = 0
+
+        months_compared = 0
+
+        for month in sorted(
+            monthly_groups.keys()
+        ):
+
+            groups = monthly_groups[month]
+
+            month_result = {}
+
+            for quartile_name in [
+                "Q1_low",
+                "Q2",
+                "Q3",
+                "Q4_high"
+            ]:
+
+                month_result[
+                    quartile_name
+                ] = v2_monthly_group_summary(
+                    groups[quartile_name]
+                )
+
+            q1_result = month_result[
+                "Q1_low"
+            ]
+
+            q4_result = month_result[
+                "Q4_high"
+            ]
+
+            if q1_result["count"] > 0:
+
+                if (
+                    q1_result[
+                        "average_excess_return_20d"
+                    ] > 0
+                ):
+                    q1_positive_excess_months += 1
+
+                if (
+                    q1_result[
+                        "beat_spy_rate"
+                    ] > 50
+                ):
+                    q1_beat_spy_50_months += 1
+
+            if q4_result["count"] > 0:
+
+                if (
+                    q4_result[
+                        "average_excess_return_20d"
+                    ] > 0
+                ):
+                    q4_positive_excess_months += 1
+
+                if (
+                    q4_result[
+                        "beat_spy_rate"
+                    ] > 50
+                ):
+                    q4_beat_spy_50_months += 1
+
+            if (
+                q1_result["count"] > 0
+                and q4_result["count"] > 0
+            ):
+
+                months_compared += 1
+
+                if (
+                    q1_result[
+                        "average_excess_return_20d"
+                    ]
+                    >
+                    q4_result[
+                        "average_excess_return_20d"
+                    ]
+                ):
+                    q1_better_than_q4_months += 1
+
+                elif (
+                    q4_result[
+                        "average_excess_return_20d"
+                    ]
+                    >
+                    q1_result[
+                        "average_excess_return_20d"
+                    ]
+                ):
+                    q4_better_than_q1_months += 1
+
+            monthly_results[month] = (
+                month_result
+            )
+
+        feature_results.append({
+
+            "feature":
+                feature,
+
+            "quartile_boundaries": {
+                "q1": round(q1, 4),
+                "q2": round(q2, 4),
+                "q3": round(q3, 4)
+            },
+
+            "stability_summary": {
+
+                "months_compared":
+                    months_compared,
+
+                "q1_positive_excess_months":
+                    q1_positive_excess_months,
+
+                "q4_positive_excess_months":
+                    q4_positive_excess_months,
+
+                "q1_beat_spy_over_50_months":
+                    q1_beat_spy_50_months,
+
+                "q4_beat_spy_over_50_months":
+                    q4_beat_spy_50_months,
+
+                "q1_better_than_q4_months":
+                    q1_better_than_q4_months,
+
+                "q4_better_than_q1_months":
+                    q4_better_than_q1_months
+            },
+
+            "months":
+                monthly_results
+        })
+
+    return {
+
+        "engine":
+            "V2 research stage 2",
+
+        "purpose":
+            "Monthly feature stability study",
+
+        "universe_stock_count":
+            len(V2_UNIVERSE),
+
+        "start_date":
+            start_date,
+
+        "end_date":
+            end_date,
+
+        "sampling":
+            "Every 5 trading days",
+
+        "observation_count":
+            len(all_rows),
+
+        "error_count":
+            len(errors),
+
+        "errors":
+            errors,
+
+        "features":
+            feature_results
+    }
