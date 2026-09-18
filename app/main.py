@@ -2814,3 +2814,751 @@ async def backtest_growth_validation(
         "results":
             results
     }
+
+# ============================================================
+# V2 RESEARCH ENGINE - STAGE 1
+# ============================================================
+#
+# Amaç:
+# Mevcut v1.1 puanlarını değiştirmeden, teknik değişkenlerin
+# gelecekteki 20 günlük getiri ve SPY'a göre excess return ile
+# ilişkisini ölçmek.
+#
+# İlk geliştirme dönemi: 2023
+#
+# NOT:
+# 2024-2026 sonuçları daha önce görüldüğü için bunlar artık
+# tamamen "unseen final test" değildir.
+# ============================================================
+
+
+V2_UNIVERSE = list(dict.fromkeys(
+    BACKTEST_WATCHLIST
+    + VALIDATION_WATCHLIST
+    + GROWTH_VALIDATION_WATCHLIST
+))
+
+
+def v2_pearson(x_values, y_values):
+
+    if len(x_values) < 2:
+        return 0
+
+    x_mean = sum(x_values) / len(x_values)
+    y_mean = sum(y_values) / len(y_values)
+
+    numerator = sum(
+        (x - x_mean) * (y - y_mean)
+        for x, y in zip(
+            x_values,
+            y_values
+        )
+    )
+
+    x_denominator = sum(
+        (x - x_mean) ** 2
+        for x in x_values
+    )
+
+    y_denominator = sum(
+        (y - y_mean) ** 2
+        for y in y_values
+    )
+
+    denominator = (
+        x_denominator
+        * y_denominator
+    ) ** 0.5
+
+    if denominator == 0:
+        return 0
+
+    return numerator / denominator
+
+
+def v2_percentile(values, percentile):
+
+    if not values:
+        return 0
+
+    ordered = sorted(values)
+
+    if len(ordered) == 1:
+        return ordered[0]
+
+    position = (
+        len(ordered) - 1
+    ) * percentile
+
+    lower_index = int(position)
+    upper_index = min(
+        lower_index + 1,
+        len(ordered) - 1
+    )
+
+    fraction = (
+        position - lower_index
+    )
+
+    return (
+        ordered[lower_index]
+        * (1 - fraction)
+        + ordered[upper_index]
+        * fraction
+    )
+
+
+def v2_feature_summary(
+    rows,
+    feature_name
+):
+
+    usable = [
+        row
+        for row in rows
+        if row.get(feature_name) is not None
+    ]
+
+    if not usable:
+
+        return {
+            "feature": feature_name,
+            "observation_count": 0
+        }
+
+    feature_values = [
+        row[feature_name]
+        for row in usable
+    ]
+
+    returns_20d = [
+        row["return_20d"]
+        for row in usable
+    ]
+
+    excess_returns = [
+        row["excess_return_20d"]
+        for row in usable
+    ]
+
+    q1 = v2_percentile(
+        feature_values,
+        0.25
+    )
+
+    q2 = v2_percentile(
+        feature_values,
+        0.50
+    )
+
+    q3 = v2_percentile(
+        feature_values,
+        0.75
+    )
+
+    quartiles = {
+        "Q1_low": [],
+        "Q2": [],
+        "Q3": [],
+        "Q4_high": []
+    }
+
+    for row in usable:
+
+        value = row[feature_name]
+
+        if value <= q1:
+            group = "Q1_low"
+
+        elif value <= q2:
+            group = "Q2"
+
+        elif value <= q3:
+            group = "Q3"
+
+        else:
+            group = "Q4_high"
+
+        quartiles[group].append(row)
+
+    quartile_results = {}
+
+    for group_name, group_rows in quartiles.items():
+
+        count = len(group_rows)
+
+        if count == 0:
+
+            quartile_results[group_name] = {
+                "count": 0,
+                "average_return_20d": 0,
+                "median_return_20d": 0,
+                "average_excess_return_20d": 0,
+                "positive_return_rate": 0,
+                "beat_spy_rate": 0
+            }
+
+            continue
+
+        group_returns = [
+            row["return_20d"]
+            for row in group_rows
+        ]
+
+        group_excess = [
+            row["excess_return_20d"]
+            for row in group_rows
+        ]
+
+        positive_count = sum(
+            1
+            for value in group_returns
+            if value > 0
+        )
+
+        beat_spy_count = sum(
+            1
+            for value in group_excess
+            if value > 0
+        )
+
+        quartile_results[group_name] = {
+
+            "count":
+                count,
+
+            "average_return_20d":
+                round(
+                    sum(group_returns)
+                    / count,
+                    2
+                ),
+
+            "median_return_20d":
+                round(
+                    statistics.median(
+                        group_returns
+                    ),
+                    2
+                ),
+
+            "average_excess_return_20d":
+                round(
+                    sum(group_excess)
+                    / count,
+                    2
+                ),
+
+            "positive_return_rate":
+                round(
+                    positive_count
+                    / count
+                    * 100,
+                    1
+                ),
+
+            "beat_spy_rate":
+                round(
+                    beat_spy_count
+                    / count
+                    * 100,
+                    1
+                )
+        }
+
+    return {
+
+        "feature":
+            feature_name,
+
+        "observation_count":
+            len(usable),
+
+        "feature_q1":
+            round(q1, 4),
+
+        "feature_median":
+            round(q2, 4),
+
+        "feature_q3":
+            round(q3, 4),
+
+        "correlation_with_return_20d":
+            round(
+                v2_pearson(
+                    feature_values,
+                    returns_20d
+                ),
+                4
+            ),
+
+        "correlation_with_excess_return_20d":
+            round(
+                v2_pearson(
+                    feature_values,
+                    excess_returns
+                ),
+                4
+            ),
+
+        "quartiles":
+            quartile_results
+    }
+
+
+@app.get("/v2/feature-study")
+async def v2_feature_study(
+    start_date: str = "2023-01-01",
+    end_date: str = "2023-12-31"
+):
+
+    """
+    V2 Stage 1.
+
+    70 hisselik evrende teknik feature'ların gelecekteki
+    20 günlük performans ile ilişkisini araştırır.
+
+    Varsayılan geliştirme dönemi 2023'tür.
+
+    Her 5 işlem gününde bir gözlem alınarak aşırı örtüşen
+    örneklerin sayısı azaltılır.
+    """
+
+    all_rows = []
+
+    errors = []
+
+    await get_spy_data()
+
+    spy_values = await get_spy_data()
+
+    spy_by_date = {
+        item["datetime"]: {
+            "open": float(
+                item["open"]
+            ),
+            "close": float(
+                item["close"]
+            )
+        }
+        for item in spy_values
+    }
+
+    batch_size = 7
+
+    for group_start in range(
+        0,
+        len(V2_UNIVERSE),
+        batch_size
+    ):
+
+        group = V2_UNIVERSE[
+            group_start:
+            group_start + batch_size
+        ]
+
+        for symbol in group:
+
+            try:
+
+                # backtest_stock çağrısı mevcut cache sistemini
+                # kullanarak hisse verisini yükler.
+                await backtest_stock(
+                    symbol,
+                    threshold=75
+                )
+
+                data = STOCK_CACHE.get(
+                    symbol
+                )
+
+                if (
+                    not data
+                    or "values" not in data
+                ):
+                    raise Exception(
+                        "Historical stock data unavailable"
+                    )
+
+                values = list(
+                    reversed(
+                        data["values"]
+                    )
+                )
+
+                dates = [
+                    item["datetime"]
+                    for item in values
+                ]
+
+                closes = [
+                    float(item["close"])
+                    for item in values
+                ]
+
+                opens = [
+                    float(item["open"])
+                    for item in values
+                ]
+
+                volumes = [
+                    float(item["volume"])
+                    for item in values
+                ]
+
+                # En az 50 günlük geçmiş,
+                # sonraki gün giriş ve 20 günlük sonuç gerekir.
+                for i in range(
+                    60,
+                    len(closes) - 20,
+                    5
+                ):
+
+                    signal_date = dates[i]
+
+                    entry_date = dates[
+                        i + 1
+                    ]
+
+                    exit_date = dates[
+                        i + 20
+                    ]
+
+                    if (
+                        signal_date
+                        < start_date
+                        or exit_date
+                        > end_date
+                    ):
+                        continue
+
+                    if (
+                        entry_date
+                        not in spy_by_date
+                        or exit_date
+                        not in spy_by_date
+                    ):
+                        continue
+
+                    history_closes = closes[
+                        :i + 1
+                    ]
+
+                    history_volumes = volumes[
+                        :i + 1
+                    ]
+
+                    price = history_closes[-1]
+
+                    ema20 = calculate_ema(
+                        history_closes,
+                        20
+                    )
+
+                    ema50 = calculate_ema(
+                        history_closes,
+                        50
+                    )
+
+                    rsi14 = calculate_rsi(
+                        history_closes,
+                        14
+                    )
+
+                    (
+                        macd,
+                        macd_signal,
+                        macd_histogram
+                    ) = calculate_macd(
+                        history_closes
+                    )
+
+                    price_20_days_ago = (
+                        history_closes[-21]
+                    )
+
+                    momentum20 = (
+                        (
+                            price
+                            - price_20_days_ago
+                        )
+                        / price_20_days_ago
+                        * 100
+                    )
+
+                    previous_20_volumes = (
+                        history_volumes[
+                            -21:-1
+                        ]
+                    )
+
+                    avg_volume20 = (
+                        sum(
+                            previous_20_volumes
+                        )
+                        / 20
+                    )
+
+                    if avg_volume20 > 0:
+
+                        volume_ratio = (
+                            history_volumes[-1]
+                            / avg_volume20
+                        )
+
+                    else:
+
+                        volume_ratio = 0
+
+                    distance_ema20 = (
+                        (
+                            price - ema20
+                        )
+                        / ema20
+                        * 100
+                    )
+
+                    ema20_vs_ema50 = (
+                        (
+                            ema20 - ema50
+                        )
+                        / ema50
+                        * 100
+                    )
+
+                    if price != 0:
+
+                        macd_histogram_pct = (
+                            macd_histogram
+                            / price
+                            * 100
+                        )
+
+                    else:
+
+                        macd_histogram_pct = 0
+
+                    entry_price = opens[
+                        i + 1
+                    ]
+
+                    exit_price = closes[
+                        i + 20
+                    ]
+
+                    return_20d = (
+                        (
+                            exit_price
+                            - entry_price
+                        )
+                        / entry_price
+                        * 100
+                    )
+
+                    spy_entry_price = (
+                        spy_by_date[
+                            entry_date
+                        ]["open"]
+                    )
+
+                    spy_exit_price = (
+                        spy_by_date[
+                            exit_date
+                        ]["close"]
+                    )
+
+                    spy_return_20d = (
+                        (
+                            spy_exit_price
+                            - spy_entry_price
+                        )
+                        / spy_entry_price
+                        * 100
+                    )
+
+                    excess_return_20d = (
+                        return_20d
+                        - spy_return_20d
+                    )
+
+                    all_rows.append({
+
+                        "symbol":
+                            symbol,
+
+                        "signal_date":
+                            signal_date,
+
+                        "return_20d":
+                            return_20d,
+
+                        "spy_return_20d":
+                            spy_return_20d,
+
+                        "excess_return_20d":
+                            excess_return_20d,
+
+                        "distance_ema20":
+                            distance_ema20,
+
+                        "ema20_vs_ema50":
+                            ema20_vs_ema50,
+
+                        "rsi14":
+                            rsi14,
+
+                        "momentum20":
+                            momentum20,
+
+                        "volume_ratio":
+                            volume_ratio,
+
+                        "macd_histogram_pct":
+                            macd_histogram_pct
+                    })
+
+            except Exception as e:
+
+                errors.append({
+                    "symbol":
+                        symbol,
+
+                    "error":
+                        str(e)
+                })
+
+        if (
+            group_start + batch_size
+            < len(V2_UNIVERSE)
+        ):
+            await asyncio.sleep(60)
+
+    features = [
+        "distance_ema20",
+        "ema20_vs_ema50",
+        "rsi14",
+        "momentum20",
+        "volume_ratio",
+        "macd_histogram_pct"
+    ]
+
+    feature_results = [
+        v2_feature_summary(
+            all_rows,
+            feature
+        )
+        for feature in features
+    ]
+
+    if all_rows:
+
+        all_returns = [
+            row["return_20d"]
+            for row in all_rows
+        ]
+
+        all_excess = [
+            row["excess_return_20d"]
+            for row in all_rows
+        ]
+
+        positive_count = sum(
+            1
+            for value in all_returns
+            if value > 0
+        )
+
+        beat_spy_count = sum(
+            1
+            for value in all_excess
+            if value > 0
+        )
+
+        overall = {
+
+            "observation_count":
+                len(all_rows),
+
+            "average_return_20d":
+                round(
+                    sum(all_returns)
+                    / len(all_returns),
+                    2
+                ),
+
+            "median_return_20d":
+                round(
+                    statistics.median(
+                        all_returns
+                    ),
+                    2
+                ),
+
+            "average_excess_return_20d":
+                round(
+                    sum(all_excess)
+                    / len(all_excess),
+                    2
+                ),
+
+            "positive_return_rate":
+                round(
+                    positive_count
+                    / len(all_rows)
+                    * 100,
+                    1
+                ),
+
+            "beat_spy_rate":
+                round(
+                    beat_spy_count
+                    / len(all_rows)
+                    * 100,
+                    1
+                )
+        }
+
+    else:
+
+        overall = {
+            "observation_count": 0
+        }
+
+    return {
+
+        "engine":
+            "V2 research stage 1",
+
+        "purpose":
+            "Feature study only - no V2 score yet",
+
+        "universe_stock_count":
+            len(V2_UNIVERSE),
+
+        "start_date":
+            start_date,
+
+        "end_date":
+            end_date,
+
+        "sampling":
+            "Every 5 trading days",
+
+        "target":
+            "Next-day open to 20-trading-day close",
+
+        "benchmark":
+            "SPY same entry and exit dates",
+
+        "error_count":
+            len(errors),
+
+        "errors":
+            errors,
+
+        "overall":
+            overall,
+
+        "features":
+            feature_results
+    }
