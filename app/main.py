@@ -4174,3 +4174,792 @@ async def v2_monthly_feature_study(
         "features":
             feature_results
     }
+
+# ============================================================
+# V2 RESEARCH ENGINE - STAGE 3
+# FROZEN CANDIDATE MODEL 1
+# ============================================================
+#
+# Model geliştirme kaynağı:
+# 2023 Stage 1 + Stage 2
+#
+# Amaç:
+# 2023'te gözlenen feature ilişkilerini TEK bir sabit
+# puanlama modeline dönüştürmek.
+#
+# Bu model oluşturulduktan sonra 2024/2025/2026 testleri
+# arasında puanlama kuralları DEĞİŞTİRİLMEYECEK.
+#
+# V1.1 sistemi değiştirilmez.
+# ============================================================
+
+
+V2_CANDIDATE_NAME = "V2-C1-FROZEN-2023"
+
+
+def calculate_v2_candidate_score(
+    closes,
+    volumes
+):
+
+    if (
+        len(closes) < 60
+        or len(volumes) < 21
+    ):
+        return None
+
+    price = closes[-1]
+
+    ema20 = calculate_ema(
+        closes,
+        20
+    )
+
+    ema50 = calculate_ema(
+        closes,
+        50
+    )
+
+    rsi14 = calculate_rsi(
+        closes,
+        14
+    )
+
+    (
+        macd,
+        macd_signal,
+        macd_histogram
+    ) = calculate_macd(
+        closes
+    )
+
+    price_20_days_ago = closes[-21]
+
+    momentum20 = (
+        (
+            price
+            - price_20_days_ago
+        )
+        / price_20_days_ago
+        * 100
+    )
+
+    previous_20_volumes = (
+        volumes[-21:-1]
+    )
+
+    avg_volume20 = (
+        sum(previous_20_volumes)
+        / 20
+    )
+
+    if avg_volume20 > 0:
+        volume_ratio = (
+            volumes[-1]
+            / avg_volume20
+        )
+    else:
+        volume_ratio = 0
+
+    distance_ema20 = (
+        (
+            price - ema20
+        )
+        / ema20
+        * 100
+    )
+
+    ema20_vs_ema50 = (
+        (
+            ema20 - ema50
+        )
+        / ema50
+        * 100
+    )
+
+    if price != 0:
+        macd_histogram_pct = (
+            macd_histogram
+            / price
+            * 100
+        )
+    else:
+        macd_histogram_pct = 0
+
+    # --------------------------------------------------------
+    # FROZEN 2023 QUARTILE BOUNDARIES
+    # --------------------------------------------------------
+
+    score = 0
+    reasons = []
+
+    # 1) PRICE DISTANCE FROM EMA20
+    #
+    # 2023:
+    # Q1 <= -1.7830
+    # Q2 <=  0.7691
+    # Q3 <=  3.6235
+    #
+    # Q1 was strongest and showed high monthly stability.
+
+    if distance_ema20 <= -1.7830:
+
+        score += 25
+
+        reasons.append(
+            "Price below EMA20 recovery zone"
+        )
+
+    elif distance_ema20 <= 0.7691:
+
+        score += 15
+
+        reasons.append(
+            "Price near EMA20"
+        )
+
+    elif distance_ema20 <= 3.6235:
+
+        score += 5
+
+    else:
+
+        score += 10
+
+        reasons.append(
+            "Price extended above EMA20"
+        )
+
+    # 2) RSI14
+    #
+    # 2023 Q1 <= 40.2119 showed strongest
+    # forward relative performance.
+
+    if rsi14 <= 40.2119:
+
+        score += 25
+
+        reasons.append(
+            "Low RSI recovery zone"
+        )
+
+    elif rsi14 <= 54.3162:
+
+        score += 15
+
+    elif rsi14 <= 67.0387:
+
+        score += 5
+
+    else:
+
+        score += 8
+
+    # 3) MOMENTUM20
+    #
+    # 2023 Q1 <= -3.6834 showed strongest
+    # and most stable relative performance.
+
+    if momentum20 <= -3.6834:
+
+        score += 25
+
+        reasons.append(
+            "Negative 20-day momentum recovery zone"
+        )
+
+    elif momentum20 <= 1.7306:
+
+        score += 15
+
+    elif momentum20 <= 7.8249:
+
+        score += 5
+
+    else:
+
+        score += 10
+
+    # 4) EMA20 VS EMA50
+    #
+    # Lower quartile showed strongest aggregate result,
+    # but monthly Q1/Q4 separation was weaker than
+    # distance/RSI/momentum, so lower weight.
+
+    if ema20_vs_ema50 <= -0.7516:
+
+        score += 10
+
+        reasons.append(
+            "Short trend below medium trend"
+        )
+
+    elif ema20_vs_ema50 <= 1.3274:
+
+        score += 7
+
+    elif ema20_vs_ema50 <= 3.6626:
+
+        score += 3
+
+    else:
+
+        score += 5
+
+    # 5) VOLUME
+    #
+    # Weak relationship in Stage 1/2.
+    # Only small contribution.
+
+    if 0.7634 < volume_ratio <= 1.1784:
+
+        score += 8
+
+    elif volume_ratio <= 0.7634:
+
+        score += 5
+
+    else:
+
+        score += 3
+
+    # 6) MACD HISTOGRAM
+    #
+    # U-shaped relationship in 2023.
+    # Extreme positive/negative values performed better
+    # than the middle groups. Low weight to avoid
+    # overfitting.
+
+    if (
+        macd_histogram_pct <= -0.3933
+        or macd_histogram_pct > 0.4582
+    ):
+
+        score += 7
+
+    else:
+
+        score += 2
+
+    # Maximum score = 100
+
+    features = {
+
+        "distance_ema20":
+            round(
+                distance_ema20,
+                4
+            ),
+
+        "ema20_vs_ema50":
+            round(
+                ema20_vs_ema50,
+                4
+            ),
+
+        "rsi14":
+            round(
+                rsi14,
+                2
+            ),
+
+        "momentum20":
+            round(
+                momentum20,
+                4
+            ),
+
+        "volume_ratio":
+            round(
+                volume_ratio,
+                4
+            ),
+
+        "macd_histogram_pct":
+            round(
+                macd_histogram_pct,
+                4
+            )
+    }
+
+    return {
+        "score": score,
+        "features": features,
+        "reasons": reasons
+    }
+
+
+@app.get("/v2/backtest")
+async def v2_backtest(
+    start_date: str = "2024-01-01",
+    end_date: str = "2024-12-31",
+    threshold: int = 75
+):
+
+    all_signals = []
+    stock_results = []
+    errors = []
+
+    spy_values = await get_spy_data()
+
+    spy_by_date = {
+        item["datetime"]: {
+            "open": float(
+                item["open"]
+            ),
+            "close": float(
+                item["close"]
+            )
+        }
+        for item in spy_values
+    }
+
+    batch_size = 7
+
+    for group_start in range(
+        0,
+        len(V2_UNIVERSE),
+        batch_size
+    ):
+
+        group = V2_UNIVERSE[
+            group_start:
+            group_start + batch_size
+        ]
+
+        for symbol in group:
+
+            try:
+
+                if symbol not in STOCK_CACHE:
+
+                    await backtest_stock(
+                        symbol,
+                        threshold=75
+                    )
+
+                data = STOCK_CACHE.get(
+                    symbol
+                )
+
+                if (
+                    not data
+                    or "values" not in data
+                ):
+
+                    raise Exception(
+                        "Historical data unavailable"
+                    )
+
+                values = list(
+                    reversed(
+                        data["values"]
+                    )
+                )
+
+                dates = [
+                    item["datetime"]
+                    for item in values
+                ]
+
+                closes = [
+                    float(item["close"])
+                    for item in values
+                ]
+
+                opens = [
+                    float(item["open"])
+                    for item in values
+                ]
+
+                volumes = [
+                    float(item["volume"])
+                    for item in values
+                ]
+
+                symbol_signals = []
+
+                previous_score = 0
+                last_signal_index = -100
+
+                for i in range(
+                    60,
+                    len(closes) - 20
+                ):
+
+                    signal_date = dates[i]
+                    entry_date = dates[i + 1]
+                    exit_date = dates[i + 20]
+
+                    history_closes = (
+                        closes[:i + 1]
+                    )
+
+                    history_volumes = (
+                        volumes[:i + 1]
+                    )
+
+                    result = (
+                        calculate_v2_candidate_score(
+                            history_closes,
+                            history_volumes
+                        )
+                    )
+
+                    if result is None:
+                        continue
+
+                    score = result["score"]
+
+                    # Same crossing/cooldown concept as V1
+                    if (
+                        score >= threshold
+                        and previous_score < threshold
+                        and i - last_signal_index >= 20
+                        and signal_date >= start_date
+                        and exit_date <= end_date
+                    ):
+
+                        if (
+                            entry_date
+                            not in spy_by_date
+                            or exit_date
+                            not in spy_by_date
+                        ):
+
+                            previous_score = score
+                            continue
+
+                        entry_price = (
+                            opens[i + 1]
+                        )
+
+                        exit_price_5d = (
+                            closes[i + 5]
+                        )
+
+                        exit_price_10d = (
+                            closes[i + 10]
+                        )
+
+                        exit_price_20d = (
+                            closes[i + 20]
+                        )
+
+                        return_5d = (
+                            (
+                                exit_price_5d
+                                - entry_price
+                            )
+                            / entry_price
+                            * 100
+                        )
+
+                        return_10d = (
+                            (
+                                exit_price_10d
+                                - entry_price
+                            )
+                            / entry_price
+                            * 100
+                        )
+
+                        return_20d = (
+                            (
+                                exit_price_20d
+                                - entry_price
+                            )
+                            / entry_price
+                            * 100
+                        )
+
+                        spy_entry = (
+                            spy_by_date[
+                                entry_date
+                            ]["open"]
+                        )
+
+                        spy_exit = (
+                            spy_by_date[
+                                exit_date
+                            ]["close"]
+                        )
+
+                        spy_return_20d = (
+                            (
+                                spy_exit
+                                - spy_entry
+                            )
+                            / spy_entry
+                            * 100
+                        )
+
+                        excess_return_20d = (
+                            return_20d
+                            - spy_return_20d
+                        )
+
+                        signal = {
+
+                            "symbol":
+                                symbol,
+
+                            "signal_date":
+                                signal_date,
+
+                            "entry_date":
+                                entry_date,
+
+                            "exit_date":
+                                exit_date,
+
+                            "score":
+                                score,
+
+                            "entry_price":
+                                round(
+                                    entry_price,
+                                    2
+                                ),
+
+                            "return_5d":
+                                round(
+                                    return_5d,
+                                    2
+                                ),
+
+                            "return_10d":
+                                round(
+                                    return_10d,
+                                    2
+                                ),
+
+                            "return_20d":
+                                round(
+                                    return_20d,
+                                    2
+                                ),
+
+                            "spy_return_20d":
+                                round(
+                                    spy_return_20d,
+                                    2
+                                ),
+
+                            "excess_return_20d":
+                                round(
+                                    excess_return_20d,
+                                    2
+                                ),
+
+                            "features":
+                                result[
+                                    "features"
+                                ],
+
+                            "reasons":
+                                result[
+                                    "reasons"
+                                ]
+                        }
+
+                        symbol_signals.append(
+                            signal
+                        )
+
+                        all_signals.append(
+                            signal
+                        )
+
+                        last_signal_index = i
+
+                    previous_score = score
+
+                stock_results.append({
+
+                    "symbol":
+                        symbol,
+
+                    "signal_count":
+                        len(
+                            symbol_signals
+                        )
+                })
+
+            except Exception as e:
+
+                errors.append({
+
+                    "symbol":
+                        symbol,
+
+                    "error":
+                        str(e)
+                })
+
+        if (
+            group_start + batch_size
+            < len(V2_UNIVERSE)
+        ):
+
+            await asyncio.sleep(60)
+
+    if all_signals:
+
+        returns_5d = [
+            x["return_5d"]
+            for x in all_signals
+        ]
+
+        returns_10d = [
+            x["return_10d"]
+            for x in all_signals
+        ]
+
+        returns_20d = [
+            x["return_20d"]
+            for x in all_signals
+        ]
+
+        spy_returns = [
+            x["spy_return_20d"]
+            for x in all_signals
+        ]
+
+        excess_returns = [
+            x["excess_return_20d"]
+            for x in all_signals
+        ]
+
+        winners = sum(
+            1
+            for x in returns_20d
+            if x > 0
+        )
+
+        beat_spy = sum(
+            1
+            for x in excess_returns
+            if x > 0
+        )
+
+        summary = {
+
+            "signal_count":
+                len(all_signals),
+
+            "average_return_5d":
+                round(
+                    sum(returns_5d)
+                    / len(returns_5d),
+                    2
+                ),
+
+            "average_return_10d":
+                round(
+                    sum(returns_10d)
+                    / len(returns_10d),
+                    2
+                ),
+
+            "average_return_20d":
+                round(
+                    sum(returns_20d)
+                    / len(returns_20d),
+                    2
+                ),
+
+            "median_return_20d":
+                round(
+                    statistics.median(
+                        returns_20d
+                    ),
+                    2
+                ),
+
+            "win_rate_20d":
+                round(
+                    winners
+                    / len(all_signals)
+                    * 100,
+                    1
+                ),
+
+            "average_spy_return_20d":
+                round(
+                    sum(spy_returns)
+                    / len(spy_returns),
+                    2
+                ),
+
+            "average_excess_return_20d":
+                round(
+                    sum(excess_returns)
+                    / len(excess_returns),
+                    2
+                ),
+
+            "median_excess_return_20d":
+                round(
+                    statistics.median(
+                        excess_returns
+                    ),
+                    2
+                ),
+
+            "beat_spy_rate_20d":
+                round(
+                    beat_spy
+                    / len(all_signals)
+                    * 100,
+                    1
+                )
+        }
+
+    else:
+
+        summary = {
+            "signal_count": 0
+        }
+
+    return {
+
+        "engine":
+            "V2 Stage 3",
+
+        "model":
+            V2_CANDIDATE_NAME,
+
+        "model_status":
+            "FROZEN",
+
+        "threshold":
+            threshold,
+
+        "start_date":
+            start_date,
+
+        "end_date":
+            end_date,
+
+        "universe_stock_count":
+            len(V2_UNIVERSE),
+
+        "successful_stock_count":
+            len(stock_results),
+
+        "error_count":
+            len(errors),
+
+        "errors":
+            errors,
+
+        "summary":
+            summary,
+
+        "stock_results":
+            stock_results,
+
+        "signals":
+            all_signals
+    }
