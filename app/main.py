@@ -540,7 +540,7 @@ async def backtest_stock(
             and previous_score < threshold
             and i - last_signal_index >= 20
             and (not start_date or signal_date >= start_date)
-            and (not end_date or signal_date <= end_date)
+            and (not end_date or exit_date_20d <= end_date)
         ):
             entry_price = opens[i + 1]
             entry_date = values[i + 1]["datetime"]
