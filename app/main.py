@@ -5611,3 +5611,658 @@ async def v2_c1_diagnostics():
         "years":
             all_year_results
     }
+
+# ============================================================
+# V2 STAGE 4B
+# SINGLE-YEAR C1 DIAGNOSTIC ENGINE
+# ============================================================
+#
+# Fix for long /v2/c1-diagnostics request.
+#
+# Each endpoint analyzes ONE year only:
+#
+# /v2/c1-diagnostics/2024
+# /v2/c1-diagnostics/2025
+# /v2/c1-diagnostics/2026
+#
+# IMPORTANT:
+# Frozen C1 model is NOT modified.
+# Threshold remains 75.
+# ============================================================
+
+
+async def v2_c1_diagnostic_single_year(
+    year: str
+):
+
+    period_map = {
+
+        "2024": (
+            "2024-01-01",
+            "2024-12-31"
+        ),
+
+        "2025": (
+            "2025-01-01",
+            "2025-12-31"
+        ),
+
+        "2026": (
+            "2026-01-01",
+            "2026-08-15"
+        )
+    }
+
+    if year not in period_map:
+
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Year must be "
+                "2024, 2025 or 2026"
+            )
+        )
+
+    start_date, end_date = (
+        period_map[year]
+    )
+
+    # --------------------------------------------------------
+    # Run EXACT frozen C1 model
+    # --------------------------------------------------------
+
+    result = await v2_backtest(
+        start_date=start_date,
+        end_date=end_date,
+        threshold=75
+    )
+
+    signals = result.get(
+        "signals",
+        []
+    )
+
+    # --------------------------------------------------------
+    # SCORE BUCKETS
+    # --------------------------------------------------------
+
+    score_groups = v2_diag_group(
+        signals,
+        lambda x:
+            "75-79"
+            if x["score"] < 80
+            else (
+                "80-84"
+                if x["score"] < 85
+                else (
+                    "85-89"
+                    if x["score"] < 90
+                    else "90-100"
+                )
+            )
+    )
+
+    # --------------------------------------------------------
+    # DISTANCE EMA20
+    # --------------------------------------------------------
+
+    distance_groups = v2_diag_group(
+        signals,
+        lambda x:
+            "Q1_very_low"
+            if (
+                x["features"][
+                    "distance_ema20"
+                ]
+                <= -1.7830
+            )
+            else (
+                "Q2_near"
+                if (
+                    x["features"][
+                        "distance_ema20"
+                    ]
+                    <= 0.7691
+                )
+                else (
+                    "Q3_above"
+                    if (
+                        x["features"][
+                            "distance_ema20"
+                        ]
+                        <= 3.6235
+                    )
+                    else "Q4_extended"
+                )
+            )
+    )
+
+    # --------------------------------------------------------
+    # RSI
+    # --------------------------------------------------------
+
+    rsi_groups = v2_diag_group(
+        signals,
+        lambda x:
+            "Q1_low"
+            if (
+                x["features"]["rsi14"]
+                <= 40.2119
+            )
+            else (
+                "Q2"
+                if (
+                    x["features"]["rsi14"]
+                    <= 54.3162
+                )
+                else (
+                    "Q3"
+                    if (
+                        x["features"]["rsi14"]
+                        <= 67.0387
+                    )
+                    else "Q4_high"
+                )
+            )
+    )
+
+    # --------------------------------------------------------
+    # MOMENTUM20
+    # --------------------------------------------------------
+
+    momentum_groups = v2_diag_group(
+        signals,
+        lambda x:
+            "Q1_negative"
+            if (
+                x["features"][
+                    "momentum20"
+                ]
+                <= -3.6834
+            )
+            else (
+                "Q2"
+                if (
+                    x["features"][
+                        "momentum20"
+                    ]
+                    <= 1.7306
+                )
+                else (
+                    "Q3"
+                    if (
+                        x["features"][
+                            "momentum20"
+                        ]
+                        <= 7.8249
+                    )
+                    else "Q4_high"
+                )
+            )
+    )
+
+    # --------------------------------------------------------
+    # EMA20 VS EMA50
+    # --------------------------------------------------------
+
+    ema_trend_groups = v2_diag_group(
+        signals,
+        lambda x:
+            "Q1_weak"
+            if (
+                x["features"][
+                    "ema20_vs_ema50"
+                ]
+                <= -0.7516
+            )
+            else (
+                "Q2"
+                if (
+                    x["features"][
+                        "ema20_vs_ema50"
+                    ]
+                    <= 1.3274
+                )
+                else (
+                    "Q3"
+                    if (
+                        x["features"][
+                            "ema20_vs_ema50"
+                        ]
+                        <= 3.6626
+                    )
+                    else "Q4_strong"
+                )
+            )
+    )
+
+    # --------------------------------------------------------
+    # VOLUME
+    # --------------------------------------------------------
+
+    volume_groups = v2_diag_group(
+        signals,
+        lambda x:
+            "Q1_low"
+            if (
+                x["features"][
+                    "volume_ratio"
+                ]
+                <= 0.7634
+            )
+            else (
+                "Q2"
+                if (
+                    x["features"][
+                        "volume_ratio"
+                    ]
+                    <= 0.9325
+                )
+                else (
+                    "Q3"
+                    if (
+                        x["features"][
+                            "volume_ratio"
+                        ]
+                        <= 1.1784
+                    )
+                    else "Q4_high"
+                )
+            )
+    )
+
+    # --------------------------------------------------------
+    # MACD HISTOGRAM
+    # --------------------------------------------------------
+
+    macd_groups = v2_diag_group(
+        signals,
+        lambda x:
+            "Q1_negative_extreme"
+            if (
+                x["features"][
+                    "macd_histogram_pct"
+                ]
+                <= -0.3933
+            )
+            else (
+                "Q2"
+                if (
+                    x["features"][
+                        "macd_histogram_pct"
+                    ]
+                    <= 0.0267
+                )
+                else (
+                    "Q3"
+                    if (
+                        x["features"][
+                            "macd_histogram_pct"
+                        ]
+                        <= 0.4582
+                    )
+                    else (
+                        "Q4_positive_extreme"
+                    )
+                )
+            )
+    )
+
+    # --------------------------------------------------------
+    # RECOVERY CONDITION COUNT
+    #
+    # Main recovery features:
+    # 1. distance EMA20
+    # 2. RSI
+    # 3. momentum
+    # --------------------------------------------------------
+
+    def recovery_count(row):
+
+        count = 0
+
+        if (
+            row["features"][
+                "distance_ema20"
+            ]
+            <= -1.7830
+        ):
+            count += 1
+
+        if (
+            row["features"]["rsi14"]
+            <= 40.2119
+        ):
+            count += 1
+
+        if (
+            row["features"][
+                "momentum20"
+            ]
+            <= -3.6834
+        ):
+            count += 1
+
+        return str(count)
+
+    recovery_groups = v2_diag_group(
+        signals,
+        recovery_count
+    )
+
+    # --------------------------------------------------------
+    # MONTHLY RESULTS
+    # --------------------------------------------------------
+
+    monthly_groups = v2_diag_group(
+        signals,
+        lambda x:
+            x["signal_date"][:7]
+    )
+
+    # --------------------------------------------------------
+    # STOCK RESULTS
+    # --------------------------------------------------------
+
+    stock_groups = v2_diag_group(
+        signals,
+        lambda x:
+            x["symbol"]
+    )
+
+    stock_rankable = []
+
+    for (
+        symbol,
+        stats
+    ) in stock_groups.items():
+
+        if stats["count"] >= 3:
+
+            stock_rankable.append({
+
+                "symbol":
+                    symbol,
+
+                "count":
+                    stats["count"],
+
+                "average_excess_return_20d":
+                    stats[
+                        "average_excess_return_20d"
+                    ],
+
+                "median_excess_return_20d":
+                    stats[
+                        "median_excess_return_20d"
+                    ],
+
+                "beat_spy_rate_20d":
+                    stats[
+                        "beat_spy_rate_20d"
+                    ]
+            })
+
+    stock_rankable.sort(
+        key=lambda x:
+            x[
+                "average_excess_return_20d"
+            ],
+        reverse=True
+    )
+
+    best_stocks = (
+        stock_rankable[:10]
+    )
+
+    worst_stocks = (
+        sorted(
+            stock_rankable,
+            key=lambda x:
+                x[
+                    "average_excess_return_20d"
+                ]
+        )[:10]
+    )
+
+    # --------------------------------------------------------
+    # OUTLIER / TRIMMED MEAN ANALYSIS
+    # --------------------------------------------------------
+
+    excess_values = sorted(
+        [
+            x["excess_return_20d"]
+            for x in signals
+        ]
+    )
+
+    trimmed_mean_excess = None
+
+    if len(excess_values) >= 20:
+
+        trim_count = max(
+            1,
+            int(
+                len(excess_values)
+                * 0.05
+            )
+        )
+
+        trimmed_values = (
+            excess_values[
+                trim_count:
+                len(excess_values)
+                - trim_count
+            ]
+        )
+
+        if trimmed_values:
+
+            trimmed_mean_excess = round(
+                sum(trimmed_values)
+                / len(trimmed_values),
+                2
+            )
+
+    # --------------------------------------------------------
+    # TOP / BOTTOM OUTLIERS
+    # --------------------------------------------------------
+
+    sorted_signals = sorted(
+        signals,
+        key=lambda x:
+            x["excess_return_20d"],
+        reverse=True
+    )
+
+    top_outliers = [
+
+        {
+            "symbol":
+                x["symbol"],
+
+            "signal_date":
+                x["signal_date"],
+
+            "score":
+                x["score"],
+
+            "return_20d":
+                x["return_20d"],
+
+            "spy_return_20d":
+                x["spy_return_20d"],
+
+            "excess_return_20d":
+                x["excess_return_20d"]
+        }
+
+        for x in sorted_signals[:10]
+    ]
+
+    bottom_outliers = [
+
+        {
+            "symbol":
+                x["symbol"],
+
+            "signal_date":
+                x["signal_date"],
+
+            "score":
+                x["score"],
+
+            "return_20d":
+                x["return_20d"],
+
+            "spy_return_20d":
+                x["spy_return_20d"],
+
+            "excess_return_20d":
+                x["excess_return_20d"]
+        }
+
+        for x in sorted_signals[-10:]
+    ]
+
+    bottom_outliers.reverse()
+
+    # --------------------------------------------------------
+    # RETURN COMPACT DIAGNOSTIC RESULT
+    #
+    # Important:
+    # We intentionally do NOT return all 300+
+    # individual signals.
+    # This keeps response smaller and faster.
+    # --------------------------------------------------------
+
+    return {
+
+        "engine":
+            "V2 Stage 4B",
+
+        "purpose":
+            "Single-year frozen C1 diagnostic",
+
+        "model":
+            V2_CANDIDATE_NAME,
+
+        "model_status":
+            "FROZEN",
+
+        "threshold":
+            75,
+
+        "year":
+            year,
+
+        "start_date":
+            start_date,
+
+        "end_date":
+            end_date,
+
+        "universe_stock_count":
+            len(V2_UNIVERSE),
+
+        "successful_stock_count":
+            result.get(
+                "successful_stock_count",
+                0
+            ),
+
+        "error_count":
+            result.get(
+                "error_count",
+                0
+            ),
+
+        "errors":
+            result.get(
+                "errors",
+                []
+            ),
+
+        "overall":
+            result.get(
+                "summary",
+                {}
+            ),
+
+        "trimmed_mean_excess_return_20d":
+            trimmed_mean_excess,
+
+        "score_buckets":
+            score_groups,
+
+        "distance_ema20_buckets":
+            distance_groups,
+
+        "rsi14_buckets":
+            rsi_groups,
+
+        "momentum20_buckets":
+            momentum_groups,
+
+        "ema20_vs_ema50_buckets":
+            ema_trend_groups,
+
+        "volume_ratio_buckets":
+            volume_groups,
+
+        "macd_histogram_buckets":
+            macd_groups,
+
+        "recovery_condition_count":
+            recovery_groups,
+
+        "monthly":
+            monthly_groups,
+
+        "best_stocks":
+            best_stocks,
+
+        "worst_stocks":
+            worst_stocks,
+
+        "top_outliers":
+            top_outliers,
+
+        "bottom_outliers":
+            bottom_outliers
+    }
+
+
+# ============================================================
+# SEPARATE YEAR ENDPOINTS
+# ============================================================
+
+
+@app.get("/v2/c1-diagnostics/2024")
+async def v2_c1_diagnostics_2024():
+
+    return await (
+        v2_c1_diagnostic_single_year(
+            "2024"
+        )
+    )
+
+
+@app.get("/v2/c1-diagnostics/2025")
+async def v2_c1_diagnostics_2025():
+
+    return await (
+        v2_c1_diagnostic_single_year(
+            "2025"
+        )
+    )
+
+
+@app.get("/v2/c1-diagnostics/2026")
+async def v2_c1_diagnostics_2026():
+
+    return await (
+        v2_c1_diagnostic_single_year(
+            "2026"
+        )
+    )
