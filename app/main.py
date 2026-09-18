@@ -1220,13 +1220,15 @@ async def send_strong_signals():
 @app.get("/backtest-monthly")
 async def backtest_monthly(
     year: int,
-    threshold: int = 75
+    threshold: int = 75,
+    end_date: str = None
 ):
     from datetime import date
 
-    # Bütün yılı tek seferde kapsıyoruz.
     start_date = f"{year}-01-01"
-    end_date = f"{year}-12-31"
+
+    if end_date is None:
+        end_date = f"{year}-12-31"
 
     # Her ay için ham sinyalleri burada toplayacağız.
     monthly_signals = {
