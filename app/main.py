@@ -2082,3 +2082,379 @@ async def backtest_spy_trend(
 
         "errors": errors
     }
+
+# ============================================================
+# UNSEEN VALIDATION BACKTEST
+# Mevcut v1.1 skor modeli değiştirilmeden farklı hisselerde test edilir.
+# Bu hisseler ana BACKTEST_WATCHLIST içinde yer almaz.
+# ============================================================
+
+VALIDATION_WATCHLIST = [
+    # Financials
+    "JPM",
+    "BAC",
+    "GS",
+    "V",
+    "MA",
+
+    # Healthcare
+    "LLY",
+    "JNJ",
+    "ABBV",
+    "MRK",
+    "UNH",
+
+    # Consumer / Retail
+    "WMT",
+    "COST",
+    "HD",
+    "MCD",
+    "NKE",
+
+    # Energy / Industrials
+    "XOM",
+    "CVX",
+    "CAT",
+    "GE",
+    "RTX",
+
+    # Additional diversified companies
+    "KO",
+    "PEP",
+    "DIS",
+    "UPS",
+    "LOW"
+]
+
+
+@app.get("/backtest-validation")
+async def backtest_validation(
+    threshold: int = 75,
+    start_date: str = None,
+    end_date: str = None
+):
+    """
+    Mevcut v1.1 backtest modelini daha önce model geliştirmede
+    kullanılmamış farklı hisseler üzerinde test eder.
+
+    Skor algoritması değiştirilmez.
+    """
+
+    results = []
+
+    all_signal_returns_20d = []
+
+    errors = []
+
+    # SPY verisini önceden cache'e al.
+    await get_spy_data()
+
+    # Twelve Data Free plan limitine karşı
+    # hisseleri küçük gruplar halinde işle.
+    batch_size = 7
+
+    for group_start in range(
+        0,
+        len(VALIDATION_WATCHLIST),
+        batch_size
+    ):
+
+        group = VALIDATION_WATCHLIST[
+            group_start:group_start + batch_size
+        ]
+
+        for symbol in group:
+
+            try:
+
+                result = await backtest_stock(
+                    symbol,
+                    threshold=threshold,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+
+                signal_count = result.get(
+                    "signal_count",
+                    0
+                )
+
+                if "signals" in result:
+                    all_signal_returns_20d.extend(
+                        item["return_20d"]
+                        for item in result["signals"]
+                    )
+
+                results.append({
+                    "symbol": symbol,
+
+                    "signal_count":
+                        signal_count,
+
+                    "average_return_5d":
+                        result.get(
+                            "average_return_5d",
+                            0
+                        ),
+
+                    "average_return_10d":
+                        result.get(
+                            "average_return_10d",
+                            0
+                        ),
+
+                    "average_return_20d":
+                        result.get(
+                            "average_return_20d",
+                            0
+                        ),
+
+                    "median_return_20d":
+                        result.get(
+                            "median_return_20d",
+                            0
+                        ),
+
+                    "baseline_average_return_20d":
+                        result.get(
+                            "baseline_average_return_20d",
+                            0
+                        ),
+
+                    "signal_advantage_20d":
+                        result.get(
+                            "signal_advantage_20d",
+                            0
+                        ),
+
+                    "win_rate_20d":
+                        result.get(
+                            "win_rate_20d",
+                            0
+                        ),
+
+                    "average_spy_return_20d":
+                        result.get(
+                            "average_spy_return_20d",
+                            0
+                        ),
+
+                    "average_excess_return_20d":
+                        result.get(
+                            "average_excess_return_20d",
+                            0
+                        ),
+
+                    "beat_spy_rate_20d":
+                        result.get(
+                            "beat_spy_rate_20d",
+                            0
+                        )
+                })
+
+            except Exception as e:
+
+                errors.append({
+                    "symbol": symbol,
+                    "error": str(e)
+                })
+
+                results.append({
+                    "symbol": symbol,
+                    "error": str(e)
+                })
+
+        # API dakika limitini koru.
+        if (
+            group_start + batch_size
+            < len(VALIDATION_WATCHLIST)
+        ):
+            await asyncio.sleep(60)
+
+    successful = [
+        item
+        for item in results
+        if "error" not in item
+        and item.get(
+            "signal_count",
+            0
+        ) > 0
+    ]
+
+    total_signals = sum(
+        item["signal_count"]
+        for item in successful
+    )
+
+    if total_signals > 0:
+
+        weighted_5d = sum(
+            item["average_return_5d"]
+            * item["signal_count"]
+            for item in successful
+        ) / total_signals
+
+        weighted_10d = sum(
+            item["average_return_10d"]
+            * item["signal_count"]
+            for item in successful
+        ) / total_signals
+
+        weighted_20d = sum(
+            item["average_return_20d"]
+            * item["signal_count"]
+            for item in successful
+        ) / total_signals
+
+        weighted_signal_advantage_20d = sum(
+            item["signal_advantage_20d"]
+            * item["signal_count"]
+            for item in successful
+        ) / total_signals
+
+        weighted_win_rate = sum(
+            item["win_rate_20d"]
+            * item["signal_count"]
+            for item in successful
+        ) / total_signals
+
+        weighted_spy_20d = sum(
+            item["average_spy_return_20d"]
+            * item["signal_count"]
+            for item in successful
+        ) / total_signals
+
+        weighted_excess_20d = sum(
+            item["average_excess_return_20d"]
+            * item["signal_count"]
+            for item in successful
+        ) / total_signals
+
+        weighted_beat_spy_rate = sum(
+            item["beat_spy_rate_20d"]
+            * item["signal_count"]
+            for item in successful
+        ) / total_signals
+
+    else:
+
+        weighted_5d = 0
+        weighted_10d = 0
+        weighted_20d = 0
+        weighted_signal_advantage_20d = 0
+        weighted_win_rate = 0
+        weighted_spy_20d = 0
+        weighted_excess_20d = 0
+        weighted_beat_spy_rate = 0
+
+    if all_signal_returns_20d:
+
+        overall_median_20d = statistics.median(
+            all_signal_returns_20d
+        )
+
+    else:
+
+        overall_median_20d = 0
+
+    results = sorted(
+        results,
+        key=lambda x: x.get(
+            "average_return_20d",
+            -999
+        ),
+        reverse=True
+    )
+
+    return {
+        "validation_type":
+            "unseen_stock_validation",
+
+        "model":
+            "v1.1 unchanged",
+
+        "threshold":
+            threshold,
+
+        "start_date":
+            start_date,
+
+        "end_date":
+            end_date,
+
+        "stock_count":
+            len(VALIDATION_WATCHLIST),
+
+        "successful_stock_count":
+            len([
+                item
+                for item in results
+                if "error" not in item
+            ]),
+
+        "error_count":
+            len(errors),
+
+        "total_signals":
+            total_signals,
+
+        "overall_average_return_5d":
+            round(
+                weighted_5d,
+                2
+            ),
+
+        "overall_average_return_10d":
+            round(
+                weighted_10d,
+                2
+            ),
+
+        "overall_average_return_20d":
+            round(
+                weighted_20d,
+                2
+            ),
+
+        "overall_median_return_20d":
+            round(
+                overall_median_20d,
+                2
+            ),
+
+        "overall_signal_advantage_20d":
+            round(
+                weighted_signal_advantage_20d,
+                2
+            ),
+
+        "overall_win_rate_20d":
+            round(
+                weighted_win_rate,
+                1
+            ),
+
+        "overall_average_spy_return_20d":
+            round(
+                weighted_spy_20d,
+                2
+            ),
+
+        "overall_average_excess_return_20d":
+            round(
+                weighted_excess_20d,
+                2
+            ),
+
+        "overall_beat_spy_rate_20d":
+            round(
+                weighted_beat_spy_rate,
+                1
+            ),
+
+        "errors":
+            errors,
+
+        "results":
+            results
+    }
