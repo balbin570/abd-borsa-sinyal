@@ -24,5 +24,68 @@
     10,
     20
   ],
-  "signals": []
+  "signals": [
+    {
+      "symbol": "FTNT",
+      "signal_date": "2026-09-18",
+      "model": "C2-TREND-FROZEN",
+      "model_version": "1.0",
+      "official_forward_sample": false,
+      "sample_status": "PRE_FREEZE_BOOTSTRAP",
+      "recorded_at_utc": "2026-09-19T17:49:14.681122+00:00",
+      "signal_close": 169.84,
+      "ema20": 163.5911,
+      "ema50": 157.5892,
+      "momentum20": 12.6335,
+      "rsi14": 53.8788,
+      "macd_histogram": 1.308687,
+      "conditions": {
+        "price_above_ema20": true,
+        "ema20_above_ema50": true,
+        "momentum_5_to_15": true,
+        "rsi_50_to_70": true,
+        "macd_histogram_positive": true
+      },
+      "entry_definition": "Next US trading day open",
+      "entry_date": null,
+      "entry_price": null,
+      "results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "benchmark_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "excess_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "result_status": "WAITING_FOR_ENTRY"
+    }
+  ],
+  "daily_scans": [
+    {
+      "evaluated_date": "2026-09-18",
+      "recorded_at_utc": "2026-09-19T17:49:14.683498+00:00",
+      "evaluated_stock_count": 70,
+      "active_full_trend_count": 3,
+      "active_full_trend_symbols": [
+        "AAPL",
+        "FTNT",
+        "ZS"
+      ],
+      "new_signal_count": 1,
+      "new_signal_symbols": [
+        "FTNT"
+      ]
+    }
+  ],
+  "last_successful_scan_market_date": "2026-09-18",
+  "last_updated_at_utc": "2026-09-19T17:49:14.683504+00:00",
+  "official_forward_signal_count": 0,
+  "bootstrap_signal_count": 1
 }
