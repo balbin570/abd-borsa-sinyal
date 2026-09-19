@@ -1,6 +1,8 @@
 import os
 import asyncio
 import statistics
+import json
+from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 import httpx
@@ -9,6 +11,61 @@ app = FastAPI(title="ABD Borsa Sinyal", version="2.0")
 SPY_CACHE = None
 SPY_CACHE_DATE = None
 STOCK_CACHE = {}
+
+# Fixed historical research snapshot.
+# Live endpoints still use Twelve Data; this snapshot is only preloaded
+# into the historical backtest/research caches.
+RESEARCH_SNAPSHOT_PATH = Path("/code/data/research_snapshot.json")
+RESEARCH_SNAPSHOT_LOADED = False
+RESEARCH_SNAPSHOT_META = {}
+
+def load_research_snapshot():
+    global SPY_CACHE, RESEARCH_SNAPSHOT_LOADED, RESEARCH_SNAPSHOT_META
+
+    if RESEARCH_SNAPSHOT_LOADED:
+        return True
+
+    if not RESEARCH_SNAPSHOT_PATH.exists():
+        return False
+
+    try:
+        with RESEARCH_SNAPSHOT_PATH.open("r", encoding="utf-8") as file:
+            snapshot = json.load(file)
+
+        symbols = snapshot.get("symbols", {})
+        spy_data = symbols.get("SPY")
+
+        if not spy_data or "values" not in spy_data:
+            return False
+
+        SPY_CACHE = list(reversed(spy_data["values"]))
+
+        loaded_stocks = 0
+        for symbol, data in symbols.items():
+            if symbol == "SPY":
+                continue
+            if isinstance(data, dict) and "values" in data:
+                STOCK_CACHE[symbol] = data
+                loaded_stocks += 1
+
+        RESEARCH_SNAPSHOT_META = {
+            "generated_at_utc": snapshot.get("generated_at_utc"),
+            "provider": snapshot.get("provider"),
+            "symbol_count": snapshot.get("symbol_count"),
+            "research_stock_count": snapshot.get("research_stock_count"),
+            "loaded_stock_count": loaded_stocks
+        }
+        RESEARCH_SNAPSHOT_LOADED = True
+        print("Research snapshot loaded:", RESEARCH_SNAPSHOT_META)
+        return True
+
+    except Exception as exc:
+        print("Research snapshot load failed:", str(exc))
+        return False
+
+# Load once when the Render process starts. If unavailable, existing
+# Twelve Data fallback behavior remains intact.
+load_research_snapshot()
 
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
@@ -3431,7 +3488,8 @@ async def v2_feature_study(
             group_start + batch_size
             < len(V2_UNIVERSE)
         ):
-            await asyncio.sleep(60)
+            if not RESEARCH_SNAPSHOT_LOADED:
+                await asyncio.sleep(60)
 
     features = [
         "distance_ema20",
@@ -3927,7 +3985,8 @@ async def v2_monthly_feature_study(
             group_start + batch_size
             < len(V2_UNIVERSE)
         ):
-            await asyncio.sleep(60)
+            if not RESEARCH_SNAPSHOT_LOADED:
+                await asyncio.sleep(60)
 
     features = [
         "distance_ema20",
@@ -4802,7 +4861,8 @@ async def v2_backtest(
             < len(V2_UNIVERSE)
         ):
 
-            await asyncio.sleep(60)
+            if not RESEARCH_SNAPSHOT_LOADED:
+                await asyncio.sleep(60)
 
     if all_signals:
 
@@ -6406,4 +6466,20 @@ async def v2_prepare_data():
                 "run Stage 4B diagnostics "
                 "without redeploying Render."
             )
+    }
+
+
+# ============================================================
+# RESEARCH SNAPSHOT STATUS
+# ============================================================
+
+@app.get("/v2/snapshot-status")
+async def v2_snapshot_status():
+    loaded = load_research_snapshot()
+    return {
+        "snapshot_loaded": loaded,
+        "snapshot_path": str(RESEARCH_SNAPSHOT_PATH),
+        "cached_stock_count": len(STOCK_CACHE),
+        "spy_cached": SPY_CACHE is not None,
+        "metadata": RESEARCH_SNAPSHOT_META
     }
