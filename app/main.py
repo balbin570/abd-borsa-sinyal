@@ -8716,3 +8716,323 @@ async def stage7_market_regime(
         "yearly":
             yearly
     }
+
+# ============================================================
+# STAGE 8
+# C2-TREND-FROZEN FORWARD VALIDATION
+# ============================================================
+
+C2_FORWARD_MODEL = {
+    "name": "C2-TREND-FROZEN",
+    "version": "1.0",
+    "frozen_at": "2026-09-19",
+    "rules": {
+        "price_above_ema20": True,
+        "ema20_above_ema50": True,
+        "momentum20_min": 5.0,
+        "momentum20_max": 15.0,
+        "rsi14_min": 50.0,
+        "rsi14_max": 70.0,
+        "macd_histogram_positive": True
+    }
+}
+
+
+def c2_forward_metrics(closes):
+
+    if len(closes) < 60:
+        return None
+
+    price = closes[-1]
+
+    ema20 = calculate_ema(
+        closes,
+        20
+    )
+
+    ema50 = calculate_ema(
+        closes,
+        50
+    )
+
+    rsi14 = calculate_rsi(
+        closes,
+        14
+    )
+
+    _, _, macd_histogram = (
+        calculate_macd(
+            closes
+        )
+    )
+
+    momentum20 = (
+        (
+            price
+            - closes[-21]
+        )
+        / closes[-21]
+    ) * 100
+
+    conditions = {
+        "price_above_ema20":
+            price > ema20,
+
+        "ema20_above_ema50":
+            ema20 > ema50,
+
+        "momentum_5_to_15":
+            5 <= momentum20 <= 15,
+
+        "rsi_50_to_70":
+            50 <= rsi14 <= 70,
+
+        "macd_histogram_positive":
+            macd_histogram > 0
+    }
+
+    full_trend = all(
+        conditions.values()
+    )
+
+    return {
+        "price":
+            round(price, 4),
+
+        "ema20":
+            round(ema20, 4),
+
+        "ema50":
+            round(ema50, 4),
+
+        "momentum20":
+            round(momentum20, 4),
+
+        "rsi14":
+            round(rsi14, 4),
+
+        "macd_histogram":
+            round(
+                macd_histogram,
+                6
+            ),
+
+        "conditions":
+            conditions,
+
+        "full_trend":
+            full_trend
+    }
+
+
+@app.get("/v2/stage8-forward-scan")
+async def stage8_forward_scan():
+
+    results = []
+    errors = []
+
+    for symbol in V2_UNIVERSE:
+
+        try:
+
+            params = {
+                "symbol": symbol,
+                "interval": "1day",
+                "outputsize": 100,
+                "apikey":
+                    TWELVE_DATA_API_KEY
+            }
+
+            async with httpx.AsyncClient(
+                timeout=30.0
+            ) as client:
+
+                response = await client.get(
+                    "https://api.twelvedata.com/time_series",
+                    params=params
+                )
+
+            data = response.json()
+
+            if (
+                "values" not in data
+                or not data["values"]
+            ):
+                errors.append({
+                    "symbol": symbol,
+                    "error": data
+                })
+                continue
+
+            values = list(
+                reversed(
+                    data["values"]
+                )
+            )
+
+            dates = [
+                item["datetime"]
+                for item in values
+            ]
+
+            closes = [
+                float(item["close"])
+                for item in values
+            ]
+
+            if len(closes) < 60:
+                errors.append({
+                    "symbol": symbol,
+                    "error":
+                        "Not enough historical data"
+                })
+                continue
+
+            metrics = (
+                c2_forward_metrics(
+                    closes
+                )
+            )
+
+            previous_metrics = (
+                c2_forward_metrics(
+                    closes[:-1]
+                )
+            )
+
+            if (
+                metrics is None
+                or previous_metrics is None
+            ):
+                continue
+
+            current_full = (
+                metrics[
+                    "full_trend"
+                ]
+            )
+
+            previous_full = (
+                previous_metrics[
+                    "full_trend"
+                ]
+            )
+
+            # --------------------------------------------
+            # FROZEN SIGNAL DEFINITION:
+            # False -> True transition only
+            # --------------------------------------------
+
+            new_signal = (
+                current_full
+                and not previous_full
+            )
+
+            results.append({
+                "symbol":
+                    symbol,
+
+                "signal_date":
+                    dates[-1],
+
+                "current_full_trend":
+                    current_full,
+
+                "previous_full_trend":
+                    previous_full,
+
+                "new_signal":
+                    new_signal,
+
+                "metrics":
+                    metrics
+            })
+
+        except Exception as exc:
+
+            errors.append({
+                "symbol":
+                    symbol,
+
+                "error":
+                    str(exc)
+            })
+
+        # Twelve Data free-plan protection.
+        # 7 calls per minute keeps us below
+        # the 8-credit/minute limit.
+        if (
+            (
+                V2_UNIVERSE.index(
+                    symbol
+                ) + 1
+            ) % 7 == 0
+            and symbol
+            != V2_UNIVERSE[-1]
+        ):
+            await asyncio.sleep(65)
+
+    new_signals = [
+        row
+        for row in results
+        if row["new_signal"]
+    ]
+
+    active_full_trend = [
+        row
+        for row in results
+        if row[
+            "current_full_trend"
+        ]
+    ]
+
+    dates_found = [
+        row["signal_date"]
+        for row in results
+    ]
+
+    evaluated_date = (
+        max(dates_found)
+        if dates_found
+        else None
+    )
+
+    return {
+        "engine":
+            "Stage 8 C2 Forward Scan",
+
+        "status":
+            "FORWARD_VALIDATION",
+
+        "model":
+            C2_FORWARD_MODEL,
+
+        "evaluated_date":
+            evaluated_date,
+
+        "universe_stock_count":
+            len(V2_UNIVERSE),
+
+        "evaluated_stock_count":
+            len(results),
+
+        "active_full_trend_count":
+            len(
+                active_full_trend
+            ),
+
+        "new_signal_count":
+            len(new_signals),
+
+        "error_count":
+            len(errors),
+
+        "new_signals":
+            new_signals,
+
+        "active_full_trend":
+            active_full_trend,
+
+        "errors":
+            errors
+    }
