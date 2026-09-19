@@ -7103,3 +7103,452 @@ async def stage5_trend_recovery(
         "recovery_condition_count":
             recovery_count_results
     }
+
+# ============================================================
+# V2 STAGE 5B
+# YEAR-BY-YEAR TREND / RECOVERY CONDITION DIAGNOSTICS
+# ============================================================
+
+@app.get("/v2/stage5b-yearly-counts")
+async def stage5b_yearly_counts(
+    start_date: str = "2024-01-01",
+    end_date: str = "2026-08-15"
+):
+
+    spy_values = await get_spy_data()
+
+    spy_by_date = {
+        item["datetime"]: {
+            "open": float(item["open"]),
+            "close": float(item["close"])
+        }
+        for item in spy_values
+    }
+
+    all_rows = []
+    errors = []
+
+    for symbol in V2_UNIVERSE:
+
+        try:
+            if symbol not in STOCK_CACHE:
+                await backtest_stock(
+                    symbol,
+                    threshold=75
+                )
+
+            data = STOCK_CACHE.get(symbol)
+
+            if not data or "values" not in data:
+                errors.append({
+                    "symbol": symbol,
+                    "error": "Historical data unavailable"
+                })
+                continue
+
+            values = list(
+                reversed(data["values"])
+            )
+
+            dates = [
+                item["datetime"]
+                for item in values
+            ]
+
+            closes = [
+                float(item["close"])
+                for item in values
+            ]
+
+            opens = [
+                float(item["open"])
+                for item in values
+            ]
+
+            volumes = [
+                float(item["volume"])
+                for item in values
+            ]
+
+            for i in range(
+                60,
+                len(closes) - 20,
+                5
+            ):
+
+                signal_date = dates[i]
+                entry_date = dates[i + 1]
+                exit_date = dates[i + 20]
+
+                if signal_date < start_date:
+                    continue
+
+                if exit_date > end_date:
+                    continue
+
+                if (
+                    entry_date not in spy_by_date
+                    or exit_date not in spy_by_date
+                ):
+                    continue
+
+                history_closes = closes[:i + 1]
+                history_volumes = volumes[:i + 1]
+
+                price = history_closes[-1]
+
+                ema20 = calculate_ema(
+                    history_closes,
+                    20
+                )
+
+                ema50 = calculate_ema(
+                    history_closes,
+                    50
+                )
+
+                rsi14 = calculate_rsi(
+                    history_closes,
+                    14
+                )
+
+                _, _, macd_histogram = (
+                    calculate_macd(
+                        history_closes
+                    )
+                )
+
+                momentum20 = (
+                    (
+                        price
+                        - history_closes[-21]
+                    )
+                    / history_closes[-21]
+                ) * 100
+
+                previous_20_volumes = (
+                    history_volumes[-21:-1]
+                )
+
+                avg_volume20 = (
+                    sum(previous_20_volumes)
+                    / 20
+                )
+
+                if avg_volume20 > 0:
+                    volume_ratio = (
+                        history_volumes[-1]
+                        / avg_volume20
+                    )
+                else:
+                    volume_ratio = 0
+
+                distance_ema20 = (
+                    (price - ema20)
+                    / ema20
+                ) * 100
+
+                # ----------------------------------------
+                # SAME TREND CONDITIONS AS STAGE 5
+                # ----------------------------------------
+
+                trend_conditions = {
+                    "price_above_ema20":
+                        price > ema20,
+
+                    "ema20_above_ema50":
+                        ema20 > ema50,
+
+                    "momentum_positive":
+                        momentum20 > 0,
+
+                    "momentum_5_to_15":
+                        5 <= momentum20 <= 15,
+
+                    "rsi_50_to_70":
+                        50 <= rsi14 <= 70,
+
+                    "macd_hist_positive":
+                        macd_histogram > 0
+                }
+
+                trend_count = sum(
+                    1
+                    for condition
+                    in trend_conditions.values()
+                    if condition
+                )
+
+                # ----------------------------------------
+                # SAME RECOVERY CONDITIONS AS STAGE 5
+                # ----------------------------------------
+
+                recovery_conditions = {
+                    "below_ema20":
+                        distance_ema20 < 0,
+
+                    "far_below_ema20":
+                        distance_ema20 <= -1.7830,
+
+                    "rsi_below_40":
+                        rsi14 <= 40.2119,
+
+                    "momentum_negative":
+                        momentum20 < 0,
+
+                    "momentum_very_negative":
+                        momentum20 <= -3.6834,
+
+                    "macd_negative":
+                        macd_histogram < 0
+                }
+
+                recovery_count = sum(
+                    1
+                    for condition
+                    in recovery_conditions.values()
+                    if condition
+                )
+
+                entry_price = opens[i + 1]
+
+                return_5d = (
+                    (
+                        closes[i + 5]
+                        - entry_price
+                    )
+                    / entry_price
+                ) * 100
+
+                return_10d = (
+                    (
+                        closes[i + 10]
+                        - entry_price
+                    )
+                    / entry_price
+                ) * 100
+
+                return_20d = (
+                    (
+                        closes[i + 20]
+                        - entry_price
+                    )
+                    / entry_price
+                ) * 100
+
+                spy_entry_price = (
+                    spy_by_date[
+                        entry_date
+                    ]["open"]
+                )
+
+                spy_exit_price = (
+                    spy_by_date[
+                        exit_date
+                    ]["close"]
+                )
+
+                spy_return_20d = (
+                    (
+                        spy_exit_price
+                        - spy_entry_price
+                    )
+                    / spy_entry_price
+                ) * 100
+
+                excess_return_20d = (
+                    return_20d
+                    - spy_return_20d
+                )
+
+                all_rows.append({
+                    "symbol":
+                        symbol,
+
+                    "signal_date":
+                        signal_date,
+
+                    "trend_count":
+                        trend_count,
+
+                    "recovery_count":
+                        recovery_count,
+
+                    "return_5d":
+                        return_5d,
+
+                    "return_10d":
+                        return_10d,
+
+                    "return_20d":
+                        return_20d,
+
+                    "excess_return_20d":
+                        excess_return_20d,
+
+                    "volume_ratio":
+                        volume_ratio
+                })
+
+        except Exception as exc:
+
+            errors.append({
+                "symbol": symbol,
+                "error": str(exc)
+            })
+
+    # ========================================================
+    # YEAR-BY-YEAR CONDITION COUNT RESULTS
+    # ========================================================
+
+    yearly = {}
+
+    for year in [
+        "2024",
+        "2025",
+        "2026"
+    ]:
+
+        year_rows = [
+            row
+            for row in all_rows
+            if row["signal_date"].startswith(
+                year
+            )
+        ]
+
+        trend_counts = {}
+        recovery_counts = {}
+
+        for count in range(0, 7):
+
+            trend_rows = [
+                row
+                for row in year_rows
+                if row["trend_count"] == count
+            ]
+
+            recovery_rows = [
+                row
+                for row in year_rows
+                if row["recovery_count"] == count
+            ]
+
+            trend_counts[str(count)] = (
+                stage5_stats(
+                    trend_rows
+                )
+            )
+
+            recovery_counts[str(count)] = (
+                stage5_stats(
+                    recovery_rows
+                )
+            )
+
+        yearly[year] = {
+            "observation_count":
+                len(year_rows),
+
+            "trend_condition_count":
+                trend_counts,
+
+            "recovery_condition_count":
+                recovery_counts
+        }
+
+    # ========================================================
+    # SPECIAL 6/6 COMPARISON
+    # ========================================================
+
+    trend_6_by_year = {}
+    recovery_6_by_year = {}
+
+    for year in [
+        "2024",
+        "2025",
+        "2026"
+    ]:
+
+        trend_rows = [
+            row
+            for row in all_rows
+            if (
+                row["signal_date"].startswith(
+                    year
+                )
+                and row["trend_count"] == 6
+            )
+        ]
+
+        recovery_rows = [
+            row
+            for row in all_rows
+            if (
+                row["signal_date"].startswith(
+                    year
+                )
+                and row["recovery_count"] == 6
+            )
+        ]
+
+        trend_6_by_year[year] = (
+            stage5_stats(
+                trend_rows
+            )
+        )
+
+        recovery_6_by_year[year] = (
+            stage5_stats(
+                recovery_rows
+            )
+        )
+
+    # ========================================================
+    # RETURN
+    # ========================================================
+
+    return {
+        "engine":
+            "V2 Stage 5B Yearly Condition Diagnostics",
+
+        "model_status":
+            "RESEARCH_ONLY",
+
+        "purpose":
+            (
+                "Test year-by-year stability "
+                "of Stage 5 trend and recovery "
+                "condition counts"
+            ),
+
+        "start_date":
+            start_date,
+
+        "end_date":
+            end_date,
+
+        "sampling":
+            "Every 5 trading days",
+
+        "universe_stock_count":
+            len(V2_UNIVERSE),
+
+        "observation_count":
+            len(all_rows),
+
+        "error_count":
+            len(errors),
+
+        "errors":
+            errors,
+
+        "trend_6_of_6_by_year":
+            trend_6_by_year,
+
+        "recovery_6_of_6_by_year":
+            recovery_6_by_year,
+
+        "yearly":
+            yearly
+    }
