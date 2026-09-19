@@ -6266,3 +6266,144 @@ async def v2_c1_diagnostics_2026():
             "2026"
         )
     )
+
+# ============================================================
+# V2 DATA PREPARATION
+# Preload historical data into RAM cache
+# ============================================================
+
+@app.get("/v2/prepare-data")
+async def v2_prepare_data():
+
+    if not TWELVE_DATA_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="Twelve Data API key missing"
+        )
+
+    # SPY'yi önce cache'e al.
+    await get_spy_data()
+
+    already_cached = []
+    downloaded = []
+    errors = []
+
+    url = "https://api.twelvedata.com/time_series"
+
+    # Twelve Data Free:
+    # SPY + en fazla 7 hisse / dakika.
+    batch_size = 7
+
+    for group_start in range(
+        0,
+        len(V2_UNIVERSE),
+        batch_size
+    ):
+
+        group = V2_UNIVERSE[
+            group_start:
+            group_start + batch_size
+        ]
+
+        api_calls_this_group = 0
+
+        for symbol in group:
+
+            # Veri zaten RAM'deyse API çağrısı yapma.
+            if symbol in STOCK_CACHE:
+                already_cached.append(symbol)
+                continue
+
+            try:
+
+                params = {
+                    "symbol": symbol,
+                    "interval": "1day",
+                    "outputsize": 1000,
+                    "apikey": TWELVE_DATA_API_KEY
+                }
+
+                async with httpx.AsyncClient(
+                    timeout=20
+                ) as client:
+
+                    response = await client.get(
+                        url,
+                        params=params
+                    )
+
+                    data = response.json()
+
+                if "values" not in data:
+
+                    errors.append({
+                        "symbol": symbol,
+                        "error": data
+                    })
+
+                    continue
+
+                STOCK_CACHE[symbol] = data
+
+                downloaded.append(symbol)
+
+                api_calls_this_group += 1
+
+            except Exception as e:
+
+                errors.append({
+                    "symbol": symbol,
+                    "error": str(e)
+                })
+
+        # Sadece gerçekten API çağrısı yaptıysak
+        # ve daha işlenecek hisseler varsa bekle.
+        if (
+            api_calls_this_group > 0
+            and group_start + batch_size
+            < len(V2_UNIVERSE)
+        ):
+            await asyncio.sleep(60)
+
+    return {
+
+        "status":
+            "ready"
+            if len(errors) == 0
+            else "completed_with_errors",
+
+        "universe_stock_count":
+            len(V2_UNIVERSE),
+
+        "cache_stock_count":
+            sum(
+                1
+                for symbol in V2_UNIVERSE
+                if symbol in STOCK_CACHE
+            ),
+
+        "downloaded_now_count":
+            len(downloaded),
+
+        "already_cached_count":
+            len(already_cached),
+
+        "error_count":
+            len(errors),
+
+        "downloaded_now":
+            downloaded,
+
+        "already_cached":
+            already_cached,
+
+        "errors":
+            errors,
+
+        "next_step":
+            (
+                "If cache_stock_count is 70, "
+                "run Stage 4B diagnostics "
+                "without redeploying Render."
+            )
+    }
