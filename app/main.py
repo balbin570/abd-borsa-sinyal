@@ -6483,3 +6483,623 @@ async def v2_snapshot_status():
         "spy_cached": SPY_CACHE is not None,
         "metadata": RESEARCH_SNAPSHOT_META
     }
+
+# ============================================================
+# V2 STAGE 5
+# TREND vs RECOVERY RESEARCH
+# ============================================================
+
+def stage5_stats(rows):
+    if not rows:
+        return {
+            "count": 0,
+            "average_return_5d": 0,
+            "average_return_10d": 0,
+            "average_return_20d": 0,
+            "median_return_20d": 0,
+            "win_rate_20d": 0,
+            "average_excess_return_20d": 0,
+            "median_excess_return_20d": 0,
+            "beat_spy_rate_20d": 0
+        }
+
+    returns_5d = [x["return_5d"] for x in rows]
+    returns_10d = [x["return_10d"] for x in rows]
+    returns_20d = [x["return_20d"] for x in rows]
+    excess_20d = [x["excess_return_20d"] for x in rows]
+
+    return {
+        "count": len(rows),
+
+        "average_return_5d": round(
+            sum(returns_5d) / len(rows), 2
+        ),
+
+        "average_return_10d": round(
+            sum(returns_10d) / len(rows), 2
+        ),
+
+        "average_return_20d": round(
+            sum(returns_20d) / len(rows), 2
+        ),
+
+        "median_return_20d": round(
+            statistics.median(returns_20d), 2
+        ),
+
+        "win_rate_20d": round(
+            sum(1 for x in returns_20d if x > 0)
+            / len(rows) * 100,
+            1
+        ),
+
+        "average_excess_return_20d": round(
+            sum(excess_20d) / len(rows), 2
+        ),
+
+        "median_excess_return_20d": round(
+            statistics.median(excess_20d), 2
+        ),
+
+        "beat_spy_rate_20d": round(
+            sum(1 for x in excess_20d if x > 0)
+            / len(rows) * 100,
+            1
+        )
+    }
+
+
+def stage5_trimmed_mean(values, trim_fraction=0.05):
+    if not values:
+        return 0
+
+    ordered = sorted(values)
+
+    trim_count = int(
+        len(ordered) * trim_fraction
+    )
+
+    if (
+        trim_count == 0
+        or trim_count * 2 >= len(ordered)
+    ):
+        trimmed = ordered
+    else:
+        trimmed = ordered[
+            trim_count:-trim_count
+        ]
+
+    return round(
+        sum(trimmed) / len(trimmed),
+        2
+    )
+
+
+@app.get("/v2/stage5-trend-recovery")
+async def stage5_trend_recovery(
+    start_date: str = "2024-01-01",
+    end_date: str = "2026-08-15"
+):
+
+    spy_values = await get_spy_data()
+
+    spy_by_date = {
+        item["datetime"]: {
+            "open": float(item["open"]),
+            "close": float(item["close"])
+        }
+        for item in spy_values
+    }
+
+    all_rows = []
+    errors = []
+
+    for symbol in V2_UNIVERSE:
+
+        try:
+            # Snapshot başlangıçta STOCK_CACHE'e
+            # yüklenmiş olmalı.
+            if symbol not in STOCK_CACHE:
+                await backtest_stock(
+                    symbol,
+                    threshold=75
+                )
+
+            data = STOCK_CACHE.get(symbol)
+
+            if not data or "values" not in data:
+                errors.append({
+                    "symbol": symbol,
+                    "error": "Historical data unavailable"
+                })
+                continue
+
+            values = list(
+                reversed(data["values"])
+            )
+
+            dates = [
+                item["datetime"]
+                for item in values
+            ]
+
+            closes = [
+                float(item["close"])
+                for item in values
+            ]
+
+            opens = [
+                float(item["open"])
+                for item in values
+            ]
+
+            volumes = [
+                float(item["volume"])
+                for item in values
+            ]
+
+            for i in range(
+                60,
+                len(closes) - 20,
+                5
+            ):
+
+                signal_date = dates[i]
+                entry_date = dates[i + 1]
+                exit_date = dates[i + 20]
+
+                if signal_date < start_date:
+                    continue
+
+                if exit_date > end_date:
+                    continue
+
+                if (
+                    entry_date not in spy_by_date
+                    or exit_date not in spy_by_date
+                ):
+                    continue
+
+                history_closes = closes[:i + 1]
+                history_volumes = volumes[:i + 1]
+
+                price = history_closes[-1]
+
+                ema20 = calculate_ema(
+                    history_closes,
+                    20
+                )
+
+                ema50 = calculate_ema(
+                    history_closes,
+                    50
+                )
+
+                rsi14 = calculate_rsi(
+                    history_closes,
+                    14
+                )
+
+                _, _, macd_histogram = (
+                    calculate_macd(
+                        history_closes
+                    )
+                )
+
+                momentum20 = (
+                    (
+                        price
+                        - history_closes[-21]
+                    )
+                    / history_closes[-21]
+                ) * 100
+
+                previous_20_volumes = (
+                    history_volumes[-21:-1]
+                )
+
+                avg_volume20 = (
+                    sum(previous_20_volumes)
+                    / 20
+                )
+
+                if avg_volume20 > 0:
+                    volume_ratio = (
+                        history_volumes[-1]
+                        / avg_volume20
+                    )
+                else:
+                    volume_ratio = 0
+
+                distance_ema20 = (
+                    (price - ema20)
+                    / ema20
+                ) * 100
+
+                ema20_vs_ema50 = (
+                    (ema20 - ema50)
+                    / ema50
+                ) * 100
+
+                macd_histogram_pct = (
+                    macd_histogram
+                    / price
+                ) * 100
+
+                entry_price = opens[i + 1]
+
+                return_5d = (
+                    (
+                        closes[i + 5]
+                        - entry_price
+                    )
+                    / entry_price
+                ) * 100
+
+                return_10d = (
+                    (
+                        closes[i + 10]
+                        - entry_price
+                    )
+                    / entry_price
+                ) * 100
+
+                return_20d = (
+                    (
+                        closes[i + 20]
+                        - entry_price
+                    )
+                    / entry_price
+                ) * 100
+
+                spy_entry = (
+                    spy_by_date[
+                        entry_date
+                    ]["open"]
+                )
+
+                spy_exit = (
+                    spy_by_date[
+                        exit_date
+                    ]["close"]
+                )
+
+                spy_return_20d = (
+                    (spy_exit - spy_entry)
+                    / spy_entry
+                ) * 100
+
+                excess_return_20d = (
+                    return_20d
+                    - spy_return_20d
+                )
+
+                # --------------------------------
+                # TREND CONDITIONS
+                # --------------------------------
+
+                trend_conditions = {
+                    "price_above_ema20":
+                        price > ema20,
+
+                    "ema20_above_ema50":
+                        ema20 > ema50,
+
+                    "momentum_positive":
+                        momentum20 > 0,
+
+                    "momentum_5_to_15":
+                        5 <= momentum20 <= 15,
+
+                    "rsi_50_to_70":
+                        50 <= rsi14 <= 70,
+
+                    "macd_hist_positive":
+                        macd_histogram > 0
+                }
+
+                trend_count = sum(
+                    1
+                    for condition
+                    in trend_conditions.values()
+                    if condition
+                )
+
+                # --------------------------------
+                # RECOVERY CONDITIONS
+                # --------------------------------
+
+                recovery_conditions = {
+                    "below_ema20":
+                        distance_ema20 < 0,
+
+                    "far_below_ema20":
+                        distance_ema20 <= -1.7830,
+
+                    "rsi_below_40":
+                        rsi14 <= 40.2119,
+
+                    "momentum_negative":
+                        momentum20 < 0,
+
+                    "momentum_very_negative":
+                        momentum20 <= -3.6834,
+
+                    "macd_negative":
+                        macd_histogram < 0
+                }
+
+                recovery_count = sum(
+                    1
+                    for condition
+                    in recovery_conditions.values()
+                    if condition
+                )
+
+                # --------------------------------
+                # EXCLUSIVE RESEARCH REGIMES
+                # --------------------------------
+
+                if (
+                    trend_count >= 5
+                    and recovery_count <= 1
+                ):
+                    regime = "TREND"
+
+                elif (
+                    recovery_count >= 4
+                    and trend_count <= 2
+                ):
+                    regime = "RECOVERY"
+
+                else:
+                    regime = "MIXED"
+
+                all_rows.append({
+                    "symbol": symbol,
+                    "signal_date": signal_date,
+                    "entry_date": entry_date,
+                    "exit_date": exit_date,
+
+                    "regime": regime,
+
+                    "trend_count":
+                        trend_count,
+
+                    "recovery_count":
+                        recovery_count,
+
+                    "return_5d":
+                        return_5d,
+
+                    "return_10d":
+                        return_10d,
+
+                    "return_20d":
+                        return_20d,
+
+                    "spy_return_20d":
+                        spy_return_20d,
+
+                    "excess_return_20d":
+                        excess_return_20d,
+
+                    "distance_ema20":
+                        distance_ema20,
+
+                    "ema20_vs_ema50":
+                        ema20_vs_ema50,
+
+                    "rsi14":
+                        rsi14,
+
+                    "momentum20":
+                        momentum20,
+
+                    "volume_ratio":
+                        volume_ratio,
+
+                    "macd_histogram_pct":
+                        macd_histogram_pct
+                })
+
+        except Exception as exc:
+            errors.append({
+                "symbol": symbol,
+                "error": str(exc)
+            })
+
+    # ========================================================
+    # MAIN REGIME GROUPS
+    # ========================================================
+
+    trend_rows = [
+        x for x in all_rows
+        if x["regime"] == "TREND"
+    ]
+
+    recovery_rows = [
+        x for x in all_rows
+        if x["regime"] == "RECOVERY"
+    ]
+
+    mixed_rows = [
+        x for x in all_rows
+        if x["regime"] == "MIXED"
+    ]
+
+    # ========================================================
+    # YEARLY RESULTS
+    # ========================================================
+
+    yearly = {}
+
+    for year in ["2024", "2025", "2026"]:
+
+        year_rows = [
+            x for x in all_rows
+            if x["signal_date"].startswith(year)
+        ]
+
+        yearly[year] = {
+            "ALL":
+                stage5_stats(
+                    year_rows
+                ),
+
+            "TREND":
+                stage5_stats([
+                    x for x in year_rows
+                    if x["regime"] == "TREND"
+                ]),
+
+            "RECOVERY":
+                stage5_stats([
+                    x for x in year_rows
+                    if x["regime"] == "RECOVERY"
+                ]),
+
+            "MIXED":
+                stage5_stats([
+                    x for x in year_rows
+                    if x["regime"] == "MIXED"
+                ])
+        }
+
+    # ========================================================
+    # TREND CONDITION COUNTS
+    # ========================================================
+
+    trend_count_results = {}
+
+    for count in range(0, 7):
+
+        rows = [
+            x for x in all_rows
+            if x["trend_count"] == count
+        ]
+
+        trend_count_results[str(count)] = (
+            stage5_stats(rows)
+        )
+
+    # ========================================================
+    # RECOVERY CONDITION COUNTS
+    # ========================================================
+
+    recovery_count_results = {}
+
+    for count in range(0, 7):
+
+        rows = [
+            x for x in all_rows
+            if x["recovery_count"] == count
+        ]
+
+        recovery_count_results[str(count)] = (
+            stage5_stats(rows)
+        )
+
+    # ========================================================
+    # ROBUSTNESS
+    # ========================================================
+
+    trend_excess = [
+        x["excess_return_20d"]
+        for x in trend_rows
+    ]
+
+    recovery_excess = [
+        x["excess_return_20d"]
+        for x in recovery_rows
+    ]
+
+    mixed_excess = [
+        x["excess_return_20d"]
+        for x in mixed_rows
+    ]
+
+    return {
+        "engine":
+            "V2 Stage 5 Trend vs Recovery Research",
+
+        "purpose":
+            (
+                "Separate continuation and "
+                "reversal structures before "
+                "designing C2"
+            ),
+
+        "model_status":
+            "RESEARCH_ONLY",
+
+        "sampling":
+            "Every 5 trading days",
+
+        "entry":
+            "Next trading day open",
+
+        "target":
+            "5d / 10d / 20d forward return",
+
+        "benchmark":
+            "SPY same entry and 20d exit",
+
+        "start_date":
+            start_date,
+
+        "end_date":
+            end_date,
+
+        "universe_stock_count":
+            len(V2_UNIVERSE),
+
+        "observation_count":
+            len(all_rows),
+
+        "error_count":
+            len(errors),
+
+        "errors":
+            errors,
+
+        "overall": {
+            "ALL":
+                stage5_stats(all_rows),
+
+            "TREND":
+                stage5_stats(trend_rows),
+
+            "RECOVERY":
+                stage5_stats(recovery_rows),
+
+            "MIXED":
+                stage5_stats(mixed_rows)
+        },
+
+        "trimmed_mean_excess_20d": {
+            "TREND":
+                stage5_trimmed_mean(
+                    trend_excess
+                ),
+
+            "RECOVERY":
+                stage5_trimmed_mean(
+                    recovery_excess
+                ),
+
+            "MIXED":
+                stage5_trimmed_mean(
+                    mixed_excess
+                )
+        },
+
+        "yearly":
+            yearly,
+
+        "trend_condition_count":
+            trend_count_results,
+
+        "recovery_condition_count":
+            recovery_count_results
+    }
