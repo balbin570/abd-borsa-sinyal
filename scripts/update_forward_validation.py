@@ -407,6 +407,386 @@ def save_forward_file(data):
 
         f.write("\n")
 
+# ============================================================
+# FORWARD RESULT TRACKING
+# ============================================================
+
+def percent_return(
+    entry_price,
+    exit_price
+):
+    return (
+        (
+            exit_price
+            / entry_price
+        )
+        - 1
+    ) * 100
+
+
+def update_signal_results(
+    forward,
+    downloaded,
+    spy_values
+):
+
+    print("")
+    print(
+        "Updating forward signal results..."
+    )
+
+    spy_by_date = {
+        row["datetime"]: row
+        for row in spy_values
+    }
+
+    horizons = {
+        "5d": 5,
+        "10d": 10,
+        "20d": 20
+    }
+
+    for signal in forward.get(
+        "signals",
+        []
+    ):
+
+        symbol = signal.get(
+            "symbol"
+        )
+
+        signal_date = signal.get(
+            "signal_date"
+        )
+
+        if (
+            not symbol
+            or not signal_date
+        ):
+            continue
+
+        if symbol not in downloaded:
+            continue
+
+        values = downloaded[
+            symbol
+        ]
+
+        # --------------------------------------------
+        # Locate the original signal date.
+        # --------------------------------------------
+
+        signal_index = None
+
+        for i, row in enumerate(
+            values
+        ):
+            if (
+                row["datetime"]
+                == signal_date
+            ):
+                signal_index = i
+                break
+
+        if signal_index is None:
+            print(
+                f"{symbol} {signal_date}: "
+                "signal date not found "
+                "in current history"
+            )
+            continue
+
+        # --------------------------------------------
+        # NEXT TRADING DAY OPEN
+        #
+        # Signal = close of day i
+        # Entry  = open of day i+1
+        # --------------------------------------------
+
+        entry_index = (
+            signal_index + 1
+        )
+
+        if entry_index >= len(values):
+
+            signal[
+                "result_status"
+            ] = "WAITING_FOR_ENTRY"
+
+            continue
+
+        entry_row = values[
+            entry_index
+        ]
+
+        entry_date = entry_row[
+            "datetime"
+        ]
+
+        entry_price = float(
+            entry_row["open"]
+        )
+
+        spy_entry_row = (
+            spy_by_date.get(
+                entry_date
+            )
+        )
+
+        if spy_entry_row is None:
+
+            print(
+                f"{symbol}: "
+                f"SPY entry date "
+                f"{entry_date} missing"
+            )
+
+            continue
+
+        spy_entry_price = float(
+            spy_entry_row["open"]
+        )
+
+        signal[
+            "entry_date"
+        ] = entry_date
+
+        signal[
+            "entry_price"
+        ] = round(
+            entry_price,
+            4
+        )
+
+        signal[
+            "spy_entry_price"
+        ] = round(
+            spy_entry_price,
+            4
+        )
+
+        # --------------------------------------------
+        # Evaluate 5 / 10 / 20 trading-day horizons.
+        #
+        # This deliberately matches our historical
+        # backtest:
+        #
+        # signal i
+        # entry  i+1 open
+        # 5d exit  i+5 close
+        # 10d exit i+10 close
+        # 20d exit i+20 close
+        # --------------------------------------------
+
+        completed_horizons = 0
+
+        for (
+            horizon_name,
+            trading_days
+        ) in horizons.items():
+
+            exit_index = (
+                signal_index
+                + trading_days
+            )
+
+            if (
+                exit_index
+                >= len(values)
+            ):
+                continue
+
+            exit_row = values[
+                exit_index
+            ]
+
+            exit_date = exit_row[
+                "datetime"
+            ]
+
+            exit_price = float(
+                exit_row["close"]
+            )
+
+            spy_exit_row = (
+                spy_by_date.get(
+                    exit_date
+                )
+            )
+
+            if spy_exit_row is None:
+
+                print(
+                    f"{symbol}: "
+                    f"SPY exit date "
+                    f"{exit_date} missing"
+                )
+
+                continue
+
+            spy_exit_price = float(
+                spy_exit_row["close"]
+            )
+
+            stock_return = (
+                percent_return(
+                    entry_price,
+                    exit_price
+                )
+            )
+
+            spy_return = (
+                percent_return(
+                    spy_entry_price,
+                    spy_exit_price
+                )
+            )
+
+            excess_return = (
+                stock_return
+                - spy_return
+            )
+
+            signal.setdefault(
+                "results",
+                {}
+            )
+
+            signal.setdefault(
+                "benchmark_results",
+                {}
+            )
+
+            signal.setdefault(
+                "excess_results",
+                {}
+            )
+
+            signal.setdefault(
+                "exit_dates",
+                {}
+            )
+
+            signal.setdefault(
+                "exit_prices",
+                {}
+            )
+
+            signal.setdefault(
+                "spy_exit_prices",
+                {}
+            )
+
+            signal[
+                "results"
+            ][
+                horizon_name
+            ] = round(
+                stock_return,
+                4
+            )
+
+            signal[
+                "benchmark_results"
+            ][
+                horizon_name
+            ] = round(
+                spy_return,
+                4
+            )
+
+            signal[
+                "excess_results"
+            ][
+                horizon_name
+            ] = round(
+                excess_return,
+                4
+            )
+
+            signal[
+                "exit_dates"
+            ][
+                horizon_name
+            ] = exit_date
+
+            signal[
+                "exit_prices"
+            ][
+                horizon_name
+            ] = round(
+                exit_price,
+                4
+            )
+
+            signal[
+                "spy_exit_prices"
+            ][
+                horizon_name
+            ] = round(
+                spy_exit_price,
+                4
+            )
+
+            completed_horizons += 1
+
+        # --------------------------------------------
+        # Signal status
+        # --------------------------------------------
+
+        if (
+            signal.get(
+                "results",
+                {}
+            ).get(
+                "20d"
+            )
+            is not None
+        ):
+
+            signal[
+                "result_status"
+            ] = "COMPLETE_20D"
+
+        elif (
+            signal.get(
+                "results",
+                {}
+            ).get(
+                "10d"
+            )
+            is not None
+        ):
+
+            signal[
+                "result_status"
+            ] = "COMPLETE_10D"
+
+        elif (
+            signal.get(
+                "results",
+                {}
+            ).get(
+                "5d"
+            )
+            is not None
+        ):
+
+            signal[
+                "result_status"
+            ] = "COMPLETE_5D"
+
+        else:
+
+            signal[
+                "result_status"
+            ] = "ENTRY_RECORDED"
+
+        print(
+            f"{symbol} "
+            f"{signal_date}: "
+            f"{signal['result_status']}"
+        )
 
 # ============================================================
 # MAIN
@@ -529,6 +909,34 @@ def main():
             "were downloaded"
         )
 
+    # ========================================================
+    # DOWNLOAD SPY BENCHMARK
+    # ========================================================
+
+    print("")
+    print(
+        "Downloading SPY benchmark..."
+    )
+
+    try:
+
+        spy_values = (
+            fetch_symbol(
+                "SPY"
+            )
+        )
+
+        print(
+            "SPY: OK"
+        )
+
+    except Exception as exc:
+
+        raise RuntimeError(
+            f"SPY download failed: "
+            f"{exc}"
+        )
+    
     # --------------------------------------------------------
     # Latest common market date.
     # --------------------------------------------------------
@@ -745,6 +1153,16 @@ def main():
             f"{record['sample_status']}"
         )
 
+    # ========================================================
+    # UPDATE ENTRY + 5D / 10D / 20D + SPY RESULTS
+    # ========================================================
+
+    update_signal_results(
+        forward,
+        downloaded,
+        spy_values
+    )
+    
     # --------------------------------------------------------
     # Daily audit record.
     # --------------------------------------------------------
