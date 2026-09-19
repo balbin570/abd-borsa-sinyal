@@ -1,0 +1,86 @@
+name: C2 Forward Validation
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    # 22:30 UTC = Türkiye saatiyle 01:30
+    # ABD piyasası kapandıktan sonra çalışır.
+    - cron: "30 22 * * 1-5"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: c2-forward-validation
+  cancel-in-progress: false
+
+jobs:
+  forward-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Run C2 forward validation
+        env:
+          STAGE8_URL: https://abd-borsa-sinyal.onrender.com/v2/stage8-forward-scan
+        run: |
+          python scripts/update_forward_validation.py
+
+      - name: Show forward validation status
+        run: |
+          python - <<'PY'
+          import json
+
+          with open(
+              "data/forward_validation.json",
+              "r",
+              encoding="utf-8"
+          ) as f:
+              data = json.load(f)
+
+          print(
+              "Last market date:",
+              data.get(
+                  "last_successful_scan_market_date"
+              )
+          )
+
+          print(
+              "Official signals:",
+              data.get(
+                  "official_forward_signal_count",
+                  0
+              )
+          )
+
+          print(
+              "Bootstrap signals:",
+              data.get(
+                  "bootstrap_signal_count",
+                  0
+              )
+          )
+          PY
+
+      - name: Commit forward validation data
+        run: |
+          if git diff --quiet -- data/forward_validation.json; then
+            echo "No forward-validation changes."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data/forward_validation.json
+          git commit -m "Update C2 forward validation"
+          git push
