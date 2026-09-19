@@ -7552,3 +7552,545 @@ async def stage5b_yearly_counts(
         "yearly":
             yearly
     }
+
+# ============================================================
+# V2 STAGE 6
+# TREND CANDIDATE ABLATION STUDY
+# ============================================================
+
+@app.get("/v2/stage6-trend-ablation")
+async def stage6_trend_ablation(
+    start_date: str = "2024-01-01",
+    end_date: str = "2026-08-15"
+):
+
+    spy_values = await get_spy_data()
+
+    spy_by_date = {
+        item["datetime"]: {
+            "open": float(item["open"]),
+            "close": float(item["close"])
+        }
+        for item in spy_values
+    }
+
+    all_rows = []
+    errors = []
+
+    for symbol in V2_UNIVERSE:
+
+        try:
+            if symbol not in STOCK_CACHE:
+                await backtest_stock(
+                    symbol,
+                    threshold=75
+                )
+
+            data = STOCK_CACHE.get(symbol)
+
+            if not data or "values" not in data:
+                errors.append({
+                    "symbol": symbol,
+                    "error": "Historical data unavailable"
+                })
+                continue
+
+            values = list(
+                reversed(data["values"])
+            )
+
+            dates = [
+                item["datetime"]
+                for item in values
+            ]
+
+            closes = [
+                float(item["close"])
+                for item in values
+            ]
+
+            opens = [
+                float(item["open"])
+                for item in values
+            ]
+
+            for i in range(
+                60,
+                len(closes) - 20,
+                5
+            ):
+
+                signal_date = dates[i]
+                entry_date = dates[i + 1]
+                exit_date = dates[i + 20]
+
+                if signal_date < start_date:
+                    continue
+
+                if exit_date > end_date:
+                    continue
+
+                if (
+                    entry_date not in spy_by_date
+                    or exit_date not in spy_by_date
+                ):
+                    continue
+
+                history = closes[:i + 1]
+
+                price = history[-1]
+
+                ema20 = calculate_ema(
+                    history,
+                    20
+                )
+
+                ema50 = calculate_ema(
+                    history,
+                    50
+                )
+
+                rsi14 = calculate_rsi(
+                    history,
+                    14
+                )
+
+                _, _, macd_histogram = (
+                    calculate_macd(
+                        history
+                    )
+                )
+
+                momentum20 = (
+                    (
+                        price
+                        - history[-21]
+                    )
+                    / history[-21]
+                ) * 100
+
+                # ==========================================
+                # FIVE INDEPENDENT TREND CONDITIONS
+                # ==========================================
+
+                conditions = {
+                    "PRICE_ABOVE_EMA20":
+                        price > ema20,
+
+                    "EMA20_ABOVE_EMA50":
+                        ema20 > ema50,
+
+                    "MOMENTUM_5_TO_15":
+                        5 <= momentum20 <= 15,
+
+                    "RSI_50_TO_70":
+                        50 <= rsi14 <= 70,
+
+                    "MACD_POSITIVE":
+                        macd_histogram > 0
+                }
+
+                # ==========================================
+                # FUTURE RETURNS
+                # ==========================================
+
+                entry_price = opens[i + 1]
+
+                return_5d = (
+                    (
+                        closes[i + 5]
+                        - entry_price
+                    )
+                    / entry_price
+                ) * 100
+
+                return_10d = (
+                    (
+                        closes[i + 10]
+                        - entry_price
+                    )
+                    / entry_price
+                ) * 100
+
+                return_20d = (
+                    (
+                        closes[i + 20]
+                        - entry_price
+                    )
+                    / entry_price
+                ) * 100
+
+                spy_entry_price = (
+                    spy_by_date[
+                        entry_date
+                    ]["open"]
+                )
+
+                spy_exit_price = (
+                    spy_by_date[
+                        exit_date
+                    ]["close"]
+                )
+
+                spy_return_20d = (
+                    (
+                        spy_exit_price
+                        - spy_entry_price
+                    )
+                    / spy_entry_price
+                ) * 100
+
+                excess_return_20d = (
+                    return_20d
+                    - spy_return_20d
+                )
+
+                all_rows.append({
+                    "symbol":
+                        symbol,
+
+                    "signal_date":
+                        signal_date,
+
+                    "conditions":
+                        conditions,
+
+                    "return_5d":
+                        return_5d,
+
+                    "return_10d":
+                        return_10d,
+
+                    "return_20d":
+                        return_20d,
+
+                    "excess_return_20d":
+                        excess_return_20d
+                })
+
+        except Exception as exc:
+            errors.append({
+                "symbol": symbol,
+                "error": str(exc)
+            })
+
+    # ========================================================
+    # MODEL DEFINITIONS
+    #
+    # FULL = all five independent conditions.
+    #
+    # Ablation variants remove ONE condition while all
+    # remaining conditions must still be true.
+    # ========================================================
+
+    model_requirements = {
+
+        "FULL": [
+            "PRICE_ABOVE_EMA20",
+            "EMA20_ABOVE_EMA50",
+            "MOMENTUM_5_TO_15",
+            "RSI_50_TO_70",
+            "MACD_POSITIVE"
+        ],
+
+        "NO_PRICE_EMA": [
+            "EMA20_ABOVE_EMA50",
+            "MOMENTUM_5_TO_15",
+            "RSI_50_TO_70",
+            "MACD_POSITIVE"
+        ],
+
+        "NO_EMA_TREND": [
+            "PRICE_ABOVE_EMA20",
+            "MOMENTUM_5_TO_15",
+            "RSI_50_TO_70",
+            "MACD_POSITIVE"
+        ],
+
+        "NO_MOMENTUM_BAND": [
+            "PRICE_ABOVE_EMA20",
+            "EMA20_ABOVE_EMA50",
+            "RSI_50_TO_70",
+            "MACD_POSITIVE"
+        ],
+
+        "NO_RSI": [
+            "PRICE_ABOVE_EMA20",
+            "EMA20_ABOVE_EMA50",
+            "MOMENTUM_5_TO_15",
+            "MACD_POSITIVE"
+        ],
+
+        "NO_MACD": [
+            "PRICE_ABOVE_EMA20",
+            "EMA20_ABOVE_EMA50",
+            "MOMENTUM_5_TO_15",
+            "RSI_50_TO_70"
+        ]
+    }
+
+    # ========================================================
+    # SELECT ROWS FOR EACH VARIANT
+    # ========================================================
+
+    variant_rows = {}
+
+    for model_name, required_conditions in (
+        model_requirements.items()
+    ):
+
+        selected = []
+
+        for row in all_rows:
+
+            if all(
+                row["conditions"][condition]
+                for condition
+                in required_conditions
+            ):
+                selected.append(row)
+
+        variant_rows[model_name] = selected
+
+    # ========================================================
+    # OVERALL RESULTS
+    # ========================================================
+
+    overall = {}
+
+    for model_name, rows in (
+        variant_rows.items()
+    ):
+
+        stats = stage5_stats(rows)
+
+        excess_values = [
+            row["excess_return_20d"]
+            for row in rows
+        ]
+
+        stats[
+            "trimmed_mean_excess_20d"
+        ] = stage5_trimmed_mean(
+            excess_values
+        )
+
+        overall[model_name] = stats
+
+    # ========================================================
+    # YEAR-BY-YEAR RESULTS
+    # ========================================================
+
+    yearly = {}
+
+    for year in [
+        "2024",
+        "2025",
+        "2026"
+    ]:
+
+        yearly[year] = {}
+
+        for model_name, rows in (
+            variant_rows.items()
+        ):
+
+            year_rows = [
+                row
+                for row in rows
+                if row[
+                    "signal_date"
+                ].startswith(year)
+            ]
+
+            stats = stage5_stats(
+                year_rows
+            )
+
+            excess_values = [
+                row["excess_return_20d"]
+                for row in year_rows
+            ]
+
+            stats[
+                "trimmed_mean_excess_20d"
+            ] = stage5_trimmed_mean(
+                excess_values
+            )
+
+            yearly[year][
+                model_name
+            ] = stats
+
+    # ========================================================
+    # MONTHLY STABILITY
+    # ========================================================
+
+    monthly_stability = {}
+
+    for model_name, rows in (
+        variant_rows.items()
+    ):
+
+        months = {}
+
+        for row in rows:
+
+            month = row[
+                "signal_date"
+            ][:7]
+
+            if month not in months:
+                months[month] = []
+
+            months[month].append(row)
+
+        positive_excess_months = 0
+        positive_median_excess_months = 0
+        beat_spy_over_50_months = 0
+
+        month_results = {}
+
+        for month, month_rows in sorted(
+            months.items()
+        ):
+
+            stats = stage5_stats(
+                month_rows
+            )
+
+            month_results[
+                month
+            ] = stats
+
+            if (
+                stats[
+                    "average_excess_return_20d"
+                ] > 0
+            ):
+                positive_excess_months += 1
+
+            if (
+                stats[
+                    "median_excess_return_20d"
+                ] > 0
+            ):
+                positive_median_excess_months += 1
+
+            if (
+                stats[
+                    "beat_spy_rate_20d"
+                ] > 50
+            ):
+                beat_spy_over_50_months += 1
+
+        monthly_stability[
+            model_name
+        ] = {
+            "months_with_observations":
+                len(months),
+
+            "positive_average_excess_months":
+                positive_excess_months,
+
+            "positive_median_excess_months":
+                positive_median_excess_months,
+
+            "beat_spy_over_50_months":
+                beat_spy_over_50_months,
+
+            "months":
+                month_results
+        }
+
+    # ========================================================
+    # RETURN
+    # ========================================================
+
+    return {
+        "engine":
+            "V2 Stage 6 Trend Ablation Study",
+
+        "model_status":
+            "RESEARCH_ONLY",
+
+        "purpose":
+            (
+                "Test whether each component "
+                "of the five-condition trend "
+                "candidate adds useful information"
+            ),
+
+        "start_date":
+            start_date,
+
+        "end_date":
+            end_date,
+
+        "sampling":
+            "Every 5 trading days",
+
+        "entry":
+            "Next trading day open",
+
+        "benchmark":
+            "SPY same entry and 20d exit",
+
+        "universe_stock_count":
+            len(V2_UNIVERSE),
+
+        "observation_count":
+            len(all_rows),
+
+        "error_count":
+            len(errors),
+
+        "errors":
+            errors,
+
+        "condition_definitions": {
+            "PRICE_ABOVE_EMA20":
+                "Price > EMA20",
+
+            "EMA20_ABOVE_EMA50":
+                "EMA20 > EMA50",
+
+            "MOMENTUM_5_TO_15":
+                "20-day momentum between 5% and 15%",
+
+            "RSI_50_TO_70":
+                "RSI14 between 50 and 70",
+
+            "MACD_POSITIVE":
+                "MACD histogram > 0"
+        },
+
+        "variant_meaning": {
+            "FULL":
+                "All five conditions required",
+
+            "NO_PRICE_EMA":
+                "All except Price > EMA20",
+
+            "NO_EMA_TREND":
+                "All except EMA20 > EMA50",
+
+            "NO_MOMENTUM_BAND":
+                "All except 5%-15% momentum band",
+
+            "NO_RSI":
+                "All except RSI 50-70",
+
+            "NO_MACD":
+                "All except positive MACD histogram"
+        },
+
+        "overall":
+            overall,
+
+        "yearly":
+            yearly,
+
+        "monthly_stability":
+            monthly_stability
+    }
