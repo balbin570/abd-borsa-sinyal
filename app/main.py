@@ -8094,3 +8094,625 @@ async def stage6_trend_ablation(
         "monthly_stability":
             monthly_stability
     }
+
+# ============================================================
+# V2 STAGE 7
+# FULL TREND SIGNAL vs SPY MARKET REGIME STUDY
+# ============================================================
+
+@app.get("/v2/stage7-market-regime")
+async def stage7_market_regime(
+    start_date: str = "2024-01-01",
+    end_date: str = "2026-08-15"
+):
+
+    spy_values = await get_spy_data()
+
+    # SPY chronological order
+    spy_dates = [
+        item["datetime"]
+        for item in spy_values
+    ]
+
+    spy_closes = [
+        float(item["close"])
+        for item in spy_values
+    ]
+
+    spy_opens = [
+        float(item["open"])
+        for item in spy_values
+    ]
+
+    spy_index_by_date = {
+        date: i
+        for i, date in enumerate(spy_dates)
+    }
+
+    all_signals = []
+    errors = []
+
+    # ========================================================
+    # FIND FULL TREND SIGNALS
+    # ========================================================
+
+    for symbol in V2_UNIVERSE:
+
+        try:
+            if symbol not in STOCK_CACHE:
+                await backtest_stock(
+                    symbol,
+                    threshold=75
+                )
+
+            data = STOCK_CACHE.get(symbol)
+
+            if not data or "values" not in data:
+                errors.append({
+                    "symbol": symbol,
+                    "error": "Historical data unavailable"
+                })
+                continue
+
+            values = list(
+                reversed(data["values"])
+            )
+
+            dates = [
+                item["datetime"]
+                for item in values
+            ]
+
+            closes = [
+                float(item["close"])
+                for item in values
+            ]
+
+            opens = [
+                float(item["open"])
+                for item in values
+            ]
+
+            for i in range(
+                60,
+                len(closes) - 20,
+                5
+            ):
+
+                signal_date = dates[i]
+                entry_date = dates[i + 1]
+                exit_date = dates[i + 20]
+
+                if signal_date < start_date:
+                    continue
+
+                if exit_date > end_date:
+                    continue
+
+                if (
+                    signal_date not in spy_index_by_date
+                    or entry_date not in spy_index_by_date
+                    or exit_date not in spy_index_by_date
+                ):
+                    continue
+
+                history = closes[:i + 1]
+
+                price = history[-1]
+
+                ema20 = calculate_ema(
+                    history,
+                    20
+                )
+
+                ema50 = calculate_ema(
+                    history,
+                    50
+                )
+
+                rsi14 = calculate_rsi(
+                    history,
+                    14
+                )
+
+                _, _, macd_histogram = (
+                    calculate_macd(
+                        history
+                    )
+                )
+
+                momentum20 = (
+                    (
+                        price
+                        - history[-21]
+                    )
+                    / history[-21]
+                ) * 100
+
+                # ==========================================
+                # FROZEN FULL TREND CANDIDATE
+                # EXACTLY SAME FIVE CONDITIONS AS STAGE 6
+                # ==========================================
+
+                full_trend = (
+                    price > ema20
+                    and ema20 > ema50
+                    and 5 <= momentum20 <= 15
+                    and 50 <= rsi14 <= 70
+                    and macd_histogram > 0
+                )
+
+                if not full_trend:
+                    continue
+
+                spy_i = spy_index_by_date[
+                    signal_date
+                ]
+
+                spy_entry_i = spy_index_by_date[
+                    entry_date
+                ]
+
+                spy_exit_i = spy_index_by_date[
+                    exit_date
+                ]
+
+                # Need enough SPY history
+                if spy_i < 60:
+                    continue
+
+                spy_history = (
+                    spy_closes[:spy_i + 1]
+                )
+
+                spy_price = (
+                    spy_history[-1]
+                )
+
+                spy_ema20 = calculate_ema(
+                    spy_history,
+                    20
+                )
+
+                spy_ema50 = calculate_ema(
+                    spy_history,
+                    50
+                )
+
+                spy_momentum20 = (
+                    (
+                        spy_price
+                        - spy_history[-21]
+                    )
+                    / spy_history[-21]
+                ) * 100
+
+                spy_distance_ema20 = (
+                    (
+                        spy_price
+                        - spy_ema20
+                    )
+                    / spy_ema20
+                ) * 100
+
+                spy_ema20_vs_ema50 = (
+                    (
+                        spy_ema20
+                        - spy_ema50
+                    )
+                    / spy_ema50
+                ) * 100
+
+                # ==========================================
+                # SPY REGIME LABELS
+                # DESCRIPTIVE ONLY - NOT FILTERS
+                # ==========================================
+
+                spy_above_ema20 = (
+                    spy_price > spy_ema20
+                )
+
+                spy_ema20_above_ema50 = (
+                    spy_ema20 > spy_ema50
+                )
+
+                spy_momentum_positive = (
+                    spy_momentum20 > 0
+                )
+
+                # Broad structural regime
+                if (
+                    spy_above_ema20
+                    and spy_ema20_above_ema50
+                    and spy_momentum_positive
+                ):
+                    market_regime = (
+                        "STRONG_UPTREND"
+                    )
+
+                elif (
+                    not spy_above_ema20
+                    and not spy_ema20_above_ema50
+                    and not spy_momentum_positive
+                ):
+                    market_regime = (
+                        "WEAK_DOWNTREND"
+                    )
+
+                else:
+                    market_regime = (
+                        "MIXED"
+                    )
+
+                # Momentum buckets
+                if spy_momentum20 < 0:
+                    momentum_regime = (
+                        "NEGATIVE"
+                    )
+
+                elif spy_momentum20 < 5:
+                    momentum_regime = (
+                        "POSITIVE_0_TO_5"
+                    )
+
+                else:
+                    momentum_regime = (
+                        "POSITIVE_5_PLUS"
+                    )
+
+                # Distance from EMA20 buckets
+                if spy_distance_ema20 < -2:
+                    distance_regime = (
+                        "BELOW_EMA20_GT_2"
+                    )
+
+                elif spy_distance_ema20 < 0:
+                    distance_regime = (
+                        "BELOW_EMA20_0_TO_2"
+                    )
+
+                elif spy_distance_ema20 <= 2:
+                    distance_regime = (
+                        "ABOVE_EMA20_0_TO_2"
+                    )
+
+                else:
+                    distance_regime = (
+                        "ABOVE_EMA20_GT_2"
+                    )
+
+                # EMA trend-strength buckets
+                if spy_ema20_vs_ema50 < 0:
+                    ema_regime = (
+                        "EMA20_BELOW_EMA50"
+                    )
+
+                elif spy_ema20_vs_ema50 <= 2:
+                    ema_regime = (
+                        "EMA20_ABOVE_EMA50_0_TO_2"
+                    )
+
+                else:
+                    ema_regime = (
+                        "EMA20_ABOVE_EMA50_GT_2"
+                    )
+
+                # ==========================================
+                # FUTURE STOCK RETURN
+                # ==========================================
+
+                entry_price = (
+                    opens[i + 1]
+                )
+
+                return_5d = (
+                    (
+                        closes[i + 5]
+                        - entry_price
+                    )
+                    / entry_price
+                ) * 100
+
+                return_10d = (
+                    (
+                        closes[i + 10]
+                        - entry_price
+                    )
+                    / entry_price
+                ) * 100
+
+                return_20d = (
+                    (
+                        closes[i + 20]
+                        - entry_price
+                    )
+                    / entry_price
+                ) * 100
+
+                # ==========================================
+                # FUTURE SPY RETURN
+                # ==========================================
+
+                spy_entry_price = (
+                    spy_opens[
+                        spy_entry_i
+                    ]
+                )
+
+                spy_exit_price = (
+                    spy_closes[
+                        spy_exit_i
+                    ]
+                )
+
+                spy_return_20d = (
+                    (
+                        spy_exit_price
+                        - spy_entry_price
+                    )
+                    / spy_entry_price
+                ) * 100
+
+                excess_return_20d = (
+                    return_20d
+                    - spy_return_20d
+                )
+
+                all_signals.append({
+                    "symbol":
+                        symbol,
+
+                    "signal_date":
+                        signal_date,
+
+                    "return_5d":
+                        return_5d,
+
+                    "return_10d":
+                        return_10d,
+
+                    "return_20d":
+                        return_20d,
+
+                    "spy_return_20d":
+                        spy_return_20d,
+
+                    "excess_return_20d":
+                        excess_return_20d,
+
+                    "market_regime":
+                        market_regime,
+
+                    "momentum_regime":
+                        momentum_regime,
+
+                    "distance_regime":
+                        distance_regime,
+
+                    "ema_regime":
+                        ema_regime,
+
+                    "spy_momentum20":
+                        spy_momentum20,
+
+                    "spy_distance_ema20":
+                        spy_distance_ema20,
+
+                    "spy_ema20_vs_ema50":
+                        spy_ema20_vs_ema50
+                })
+
+        except Exception as exc:
+
+            errors.append({
+                "symbol": symbol,
+                "error": str(exc)
+            })
+
+    # ========================================================
+    # GROUP HELPER
+    # ========================================================
+
+    def stage7_group(rows, field):
+
+        groups = {}
+
+        for row in rows:
+
+            key = row[field]
+
+            if key not in groups:
+                groups[key] = []
+
+            groups[key].append(row)
+
+        result = {}
+
+        for key, group_rows in sorted(
+            groups.items()
+        ):
+
+            stats = stage5_stats(
+                group_rows
+            )
+
+            excess_values = [
+                row[
+                    "excess_return_20d"
+                ]
+                for row in group_rows
+            ]
+
+            stats[
+                "trimmed_mean_excess_20d"
+            ] = stage5_trimmed_mean(
+                excess_values
+            )
+
+            result[key] = stats
+
+        return result
+
+    # ========================================================
+    # OVERALL
+    # ========================================================
+
+    overall_stats = stage5_stats(
+        all_signals
+    )
+
+    overall_stats[
+        "trimmed_mean_excess_20d"
+    ] = stage5_trimmed_mean(
+        [
+            row["excess_return_20d"]
+            for row in all_signals
+        ]
+    )
+
+    # ========================================================
+    # YEARLY REGIME RESULTS
+    # ========================================================
+
+    yearly = {}
+
+    for year in [
+        "2024",
+        "2025",
+        "2026"
+    ]:
+
+        year_rows = [
+            row
+            for row in all_signals
+            if row[
+                "signal_date"
+            ].startswith(year)
+        ]
+
+        yearly[year] = {
+            "signal_count":
+                len(year_rows),
+
+            "overall":
+                stage5_stats(
+                    year_rows
+                ),
+
+            "market_regime":
+                stage7_group(
+                    year_rows,
+                    "market_regime"
+                ),
+
+            "spy_momentum_regime":
+                stage7_group(
+                    year_rows,
+                    "momentum_regime"
+                ),
+
+            "spy_distance_regime":
+                stage7_group(
+                    year_rows,
+                    "distance_regime"
+                ),
+
+            "spy_ema_regime":
+                stage7_group(
+                    year_rows,
+                    "ema_regime"
+                )
+        }
+
+    # ========================================================
+    # RETURN
+    # ========================================================
+
+    return {
+        "engine":
+            "V2 Stage 7 Market Regime Study",
+
+        "model_status":
+            "RESEARCH_ONLY",
+
+        "purpose":
+            (
+                "Measure FULL trend candidate "
+                "performance across SPY market "
+                "conditions without adding filters"
+            ),
+
+        "full_trend_definition": {
+            "price_above_ema20":
+                True,
+
+            "ema20_above_ema50":
+                True,
+
+            "momentum20":
+                "5% to 15%",
+
+            "rsi14":
+                "50 to 70",
+
+            "macd_histogram":
+                "greater than 0"
+        },
+
+        "start_date":
+            start_date,
+
+        "end_date":
+            end_date,
+
+        "sampling":
+            "Every 5 trading days",
+
+        "entry":
+            "Next trading day open",
+
+        "benchmark":
+            "SPY same entry and 20d exit",
+
+        "universe_stock_count":
+            len(V2_UNIVERSE),
+
+        "signal_count":
+            len(all_signals),
+
+        "error_count":
+            len(errors),
+
+        "errors":
+            errors,
+
+        "overall":
+            overall_stats,
+
+        "market_regime":
+            stage7_group(
+                all_signals,
+                "market_regime"
+            ),
+
+        "spy_momentum_regime":
+            stage7_group(
+                all_signals,
+                "momentum_regime"
+            ),
+
+        "spy_distance_regime":
+            stage7_group(
+                all_signals,
+                "distance_regime"
+            ),
+
+        "spy_ema_regime":
+            stage7_group(
+                all_signals,
+                "ema_regime"
+            ),
+
+        "yearly":
+            yearly
+    }
