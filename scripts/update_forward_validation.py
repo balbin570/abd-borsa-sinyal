@@ -1,44 +1,403 @@
 import json
 import os
 import sys
-import urllib.request
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+import httpx
 
-FORWARD_FILE = Path("data/forward_validation.json")
 
-STAGE8_URL = os.environ.get(
-    "STAGE8_URL",
-    "https://abd-borsa-sinyal.onrender.com/v2/stage8-forward-scan"
-)
+# ============================================================
+# C2-TREND-FROZEN
+# FROZEN: 2026-09-19
+# DO NOT MODIFY DURING FORWARD VALIDATION
+# ============================================================
 
 FREEZE_DATE = "2026-09-19"
 
+FORWARD_FILE = Path(
+    "data/forward_validation.json"
+)
+
+API_KEY = os.environ.get(
+    "TWELVE_DATA_API_KEY"
+)
+
+API_URL = (
+    "https://api.twelvedata.com/time_series"
+)
+
+
+V2_UNIVERSE = [
+    # Original 20
+    "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL",
+    "META", "AVGO", "TSLA", "AMD", "NFLX",
+    "PLTR", "ORCL", "CRM", "QCOM", "MU",
+    "AMAT", "PANW", "CRWD", "LRCX", "KLAC",
+
+    # General validation 25
+    "JPM", "BAC", "GS", "V", "MA",
+    "LLY", "JNJ", "ABBV", "MRK", "UNH",
+    "WMT", "COST", "HD", "MCD", "NKE",
+    "XOM", "CVX", "CAT", "GE", "RTX",
+    "KO", "PEP", "DIS", "UPS", "LOW",
+
+    # Growth / tech validation 25
+    "NOW", "ADBE", "INTU", "SNOW", "DDOG",
+    "FTNT", "ZS", "NET", "OKTA", "MDB",
+    "MRVL", "ADI", "NXPI", "MCHP", "ON",
+    "SHOP", "UBER", "ABNB", "DASH", "RBLX",
+    "APP", "TTD", "TEAM", "HUBS", "WDAY"
+]
+
+
+# ============================================================
+# INDICATORS
+# These intentionally match the frozen research implementation.
+# ============================================================
+
+def calculate_ema(prices, period):
+    multiplier = 2 / (period + 1)
+
+    ema = (
+        sum(prices[:period])
+        / period
+    )
+
+    for price in prices[period:]:
+        ema = (
+            (price - ema)
+            * multiplier
+            + ema
+        )
+
+    return ema
+
+
+def calculate_rsi(prices, period=14):
+    if len(prices) < period + 1:
+        return None
+
+    gains = []
+    losses = []
+
+    for i in range(
+        1,
+        len(prices)
+    ):
+        change = (
+            prices[i]
+            - prices[i - 1]
+        )
+
+        if change > 0:
+            gains.append(change)
+            losses.append(0)
+        else:
+            gains.append(0)
+            losses.append(
+                abs(change)
+            )
+
+    avg_gain = (
+        sum(gains[-period:])
+        / period
+    )
+
+    avg_loss = (
+        sum(losses[-period:])
+        / period
+    )
+
+    if avg_loss == 0:
+        return 100.0
+
+    rs = avg_gain / avg_loss
+
+    return (
+        100
+        - (
+            100
+            / (1 + rs)
+        )
+    )
+
+
+def calculate_ema_series(
+    prices,
+    period
+):
+    if len(prices) < period:
+        return []
+
+    multiplier = (
+        2 / (period + 1)
+    )
+
+    ema = (
+        sum(prices[:period])
+        / period
+    )
+
+    ema_values = [ema]
+
+    for price in prices[period:]:
+        ema = (
+            (price - ema)
+            * multiplier
+            + ema
+        )
+
+        ema_values.append(ema)
+
+    return ema_values
+
+
+def calculate_macd(prices):
+    ema12_series = (
+        calculate_ema_series(
+            prices,
+            12
+        )
+    )
+
+    ema26_series = (
+        calculate_ema_series(
+            prices,
+            26
+        )
+    )
+
+    if (
+        len(ema12_series) == 0
+        or len(ema26_series) == 0
+    ):
+        return 0, 0, 0
+
+    ema12_aligned = (
+        ema12_series[
+            -len(ema26_series):
+        ]
+    )
+
+    macd_series = [
+        ema12 - ema26
+        for ema12, ema26
+        in zip(
+            ema12_aligned,
+            ema26_series
+        )
+    ]
+
+    if len(macd_series) < 9:
+        return 0, 0, 0
+
+    signal_series = (
+        calculate_ema_series(
+            macd_series,
+            9
+        )
+    )
+
+    macd = macd_series[-1]
+    signal = signal_series[-1]
+
+    histogram = (
+        macd - signal
+    )
+
+    return (
+        macd,
+        signal,
+        histogram
+    )
+
+
+# ============================================================
+# C2 FROZEN CONDITION
+# ============================================================
+
+def calculate_c2(closes):
+
+    if len(closes) < 60:
+        return None
+
+    price = closes[-1]
+
+    ema20 = calculate_ema(
+        closes,
+        20
+    )
+
+    ema50 = calculate_ema(
+        closes,
+        50
+    )
+
+    rsi14 = calculate_rsi(
+        closes,
+        14
+    )
+
+    _, _, macd_histogram = (
+        calculate_macd(
+            closes
+        )
+    )
+
+    momentum20 = (
+        (
+            price
+            - closes[-21]
+        )
+        / closes[-21]
+    ) * 100
+
+    conditions = {
+        "price_above_ema20":
+            price > ema20,
+
+        "ema20_above_ema50":
+            ema20 > ema50,
+
+        "momentum_5_to_15":
+            5 <= momentum20 <= 15,
+
+        "rsi_50_to_70":
+            50 <= rsi14 <= 70,
+
+        "macd_histogram_positive":
+            macd_histogram > 0
+    }
+
+    return {
+        "price":
+            round(price, 4),
+
+        "ema20":
+            round(ema20, 4),
+
+        "ema50":
+            round(ema50, 4),
+
+        "momentum20":
+            round(momentum20, 4),
+
+        "rsi14":
+            round(rsi14, 4),
+
+        "macd_histogram":
+            round(
+                macd_histogram,
+                6
+            ),
+
+        "conditions":
+            conditions,
+
+        "full_trend":
+            all(
+                conditions.values()
+            )
+    }
+
+
+# ============================================================
+# TWELVE DATA
+# ============================================================
+
+def fetch_symbol(symbol):
+
+    params = {
+        "symbol":
+            symbol,
+
+        "interval":
+            "1day",
+
+        "outputsize":
+            100,
+
+        "apikey":
+            API_KEY
+    }
+
+    for attempt in range(1, 4):
+
+        try:
+
+            response = httpx.get(
+                API_URL,
+                params=params,
+                timeout=30.0
+            )
+
+            response.raise_for_status()
+
+            data = response.json()
+
+            if (
+                "values" in data
+                and data["values"]
+            ):
+                values = list(
+                    reversed(
+                        data["values"]
+                    )
+                )
+
+                return values
+
+            print(
+                f"{symbol}: "
+                f"API response without values: "
+                f"{data}"
+            )
+
+        except Exception as exc:
+
+            print(
+                f"{symbol}: "
+                f"attempt {attempt} failed: "
+                f"{exc}"
+            )
+
+        if attempt < 3:
+            time.sleep(10)
+
+    raise RuntimeError(
+        f"Could not download {symbol}"
+    )
+
+
+# ============================================================
+# FILE HELPERS
+# ============================================================
 
 def load_forward_file():
+
     if not FORWARD_FILE.exists():
         raise RuntimeError(
-            f"{FORWARD_FILE} not found"
+            "forward_validation.json "
+            "not found"
         )
 
     with FORWARD_FILE.open(
         "r",
         encoding="utf-8"
     ) as f:
+
         return json.load(f)
 
 
 def save_forward_file(data):
-    FORWARD_FILE.parent.mkdir(
-        parents=True,
-        exist_ok=True
-    )
 
     with FORWARD_FILE.open(
         "w",
         encoding="utf-8"
     ) as f:
+
         json.dump(
             data,
             f,
@@ -49,227 +408,237 @@ def save_forward_file(data):
         f.write("\n")
 
 
-def fetch_stage8():
-    print("Calling Stage 8 endpoint...")
-    print(STAGE8_URL)
+# ============================================================
+# MAIN
+# ============================================================
 
-    request = urllib.request.Request(
-        STAGE8_URL,
-        headers={
-            "User-Agent":
-                "C2-Forward-Validation/1.0"
-        }
-    )
+def main():
 
-    # Render endpoint may take ~10-11 minutes.
-    with urllib.request.urlopen(
-        request,
-        timeout=900
-    ) as response:
-
-        if response.status != 200:
-            raise RuntimeError(
-                f"Stage 8 HTTP status: "
-                f"{response.status}"
-            )
-
-        raw = response.read().decode(
-            "utf-8"
-        )
-
-        return json.loads(raw)
-
-
-def validate_scan(scan):
-    if (
-        scan.get("engine")
-        != "Stage 8 C2 Forward Scan"
-    ):
+    if not API_KEY:
         raise RuntimeError(
-            "Unexpected Stage 8 engine"
+            "TWELVE_DATA_API_KEY "
+            "secret is missing"
         )
 
-    if (
-        scan.get("status")
-        != "FORWARD_VALIDATION"
-    ):
-        raise RuntimeError(
-            "Unexpected Stage 8 status"
-        )
-
-    model = scan.get(
-        "model",
-        {}
+    forward = (
+        load_forward_file()
     )
 
     if (
-        model.get("name")
+        forward.get("model")
         != "C2-TREND-FROZEN"
     ):
         raise RuntimeError(
-            "Unexpected model name"
+            "Unexpected model in "
+            "forward_validation.json"
+        )
+
+    existing_keys = {
+        (
+            row.get("symbol"),
+            row.get("signal_date")
+        )
+        for row
+        in forward.get(
+            "signals",
+            []
+        )
+    }
+
+    downloaded = {}
+
+    errors = []
+
+    print(
+        "Starting C2 forward scan..."
+    )
+
+    print(
+        f"Universe: "
+        f"{len(V2_UNIVERSE)} stocks"
+    )
+
+    # --------------------------------------------------------
+    # Download 70 stocks.
+    # 7 per batch + 65 second pause.
+    # --------------------------------------------------------
+
+    for index, symbol in enumerate(
+        V2_UNIVERSE,
+        start=1
+    ):
+
+        try:
+
+            values = (
+                fetch_symbol(
+                    symbol
+                )
+            )
+
+            downloaded[
+                symbol
+            ] = values
+
+            print(
+                f"[{index}/"
+                f"{len(V2_UNIVERSE)}] "
+                f"{symbol}: OK"
+            )
+
+        except Exception as exc:
+
+            errors.append({
+                "symbol":
+                    symbol,
+
+                "error":
+                    str(exc)
+            })
+
+            print(
+                f"{symbol}: ERROR "
+                f"{exc}"
+            )
+
+        if (
+            index % 7 == 0
+            and index
+            < len(V2_UNIVERSE)
+        ):
+            print(
+                "API limit pause: "
+                "65 seconds..."
+            )
+
+            time.sleep(65)
+
+    if errors:
+        raise RuntimeError(
+            f"Forward scan stopped. "
+            f"{len(errors)} symbol(s) "
+            f"failed: {errors}"
         )
 
     if (
-        model.get("version")
-        != "1.0"
+        len(downloaded)
+        != len(V2_UNIVERSE)
     ):
         raise RuntimeError(
-            "Unexpected model version"
+            "Not all 70 stocks "
+            "were downloaded"
         )
 
-    evaluated_count = scan.get(
-        "evaluated_stock_count",
-        0
-    )
+    # --------------------------------------------------------
+    # Latest common market date.
+    # --------------------------------------------------------
 
-    error_count = scan.get(
-        "error_count",
-        0
-    )
+    latest_dates = []
 
-    if evaluated_count != 70:
-        raise RuntimeError(
-            f"Expected 70 evaluated stocks, "
-            f"received {evaluated_count}"
+    for values in downloaded.values():
+
+        latest_dates.append(
+            values[-1]["datetime"]
         )
 
-    if error_count != 0:
-        raise RuntimeError(
-            f"Stage 8 returned "
-            f"{error_count} errors"
-        )
-
-
-def signal_key(signal):
-    return (
-        signal.get("symbol"),
-        signal.get("signal_date")
+    evaluated_date = min(
+        latest_dates
     )
-
-
-def main():
-    forward = load_forward_file()
-
-    scan = fetch_stage8()
-
-    validate_scan(scan)
-
-    evaluated_date = scan.get(
-        "evaluated_date"
-    )
-
-    if not evaluated_date:
-        raise RuntimeError(
-            "evaluated_date missing"
-        )
 
     print(
         f"Evaluated market date: "
         f"{evaluated_date}"
     )
 
-    print(
-        f"New signals returned: "
-        f"{scan.get('new_signal_count', 0)}"
-    )
-
     # --------------------------------------------------------
-    # Keep an audit trail of successful daily scans.
-    # One record per evaluated market date.
+    # Evaluate current and previous completed bars.
     # --------------------------------------------------------
 
-    if "daily_scans" not in forward:
-        forward["daily_scans"] = []
+    active_symbols = []
 
-    existing_scan_dates = {
-        row.get("evaluated_date")
-        for row in forward["daily_scans"]
-    }
+    new_signals = []
 
-    if evaluated_date not in existing_scan_dates:
+    for symbol in V2_UNIVERSE:
 
-        forward["daily_scans"].append({
-            "evaluated_date":
-                evaluated_date,
+        values = downloaded[
+            symbol
+        ]
 
-            "recorded_at_utc":
-                datetime.now(
-                    timezone.utc
-                ).isoformat(),
+        # If a symbol somehow has a newer bar
+        # than the common market date, trim it.
+        values = [
+            row
+            for row in values
+            if row["datetime"]
+            <= evaluated_date
+        ]
 
-            "evaluated_stock_count":
-                scan.get(
-                    "evaluated_stock_count"
-                ),
+        closes = [
+            float(row["close"])
+            for row in values
+        ]
 
-            "active_full_trend_count":
-                scan.get(
-                    "active_full_trend_count"
-                ),
-
-            "new_signal_count":
-                scan.get(
-                    "new_signal_count"
-                ),
-
-            "new_signal_symbols": [
-                row.get("symbol")
-                for row in scan.get(
-                    "new_signals",
-                    []
-                )
-            ]
-        })
-
-    # --------------------------------------------------------
-    # Existing signal keys prevent duplicates if the Action
-    # runs more than once on the same day.
-    # --------------------------------------------------------
-
-    if "signals" not in forward:
-        forward["signals"] = []
-
-    existing_signal_keys = {
-        signal_key(row)
-        for row in forward["signals"]
-    }
-
-    added = 0
-
-    for signal in scan.get(
-        "new_signals",
-        []
-    ):
-
-        key = signal_key(signal)
-
-        if key in existing_signal_keys:
-            print(
-                f"Already recorded: "
-                f"{key[0]} {key[1]}"
+        if len(closes) < 61:
+            raise RuntimeError(
+                f"Not enough data "
+                f"for {symbol}"
             )
+
+        current = calculate_c2(
+            closes
+        )
+
+        previous = calculate_c2(
+            closes[:-1]
+        )
+
+        if (
+            current is None
+            or previous is None
+        ):
+            raise RuntimeError(
+                f"C2 calculation failed "
+                f"for {symbol}"
+            )
+
+        if current["full_trend"]:
+
+            active_symbols.append(
+                symbol
+            )
+
+        new_signal = (
+            current["full_trend"]
+            and not previous[
+                "full_trend"
+            ]
+        )
+
+        if not new_signal:
             continue
 
-        signal_date = signal.get(
-            "signal_date"
+        signal_date = (
+            values[-1][
+                "datetime"
+            ]
         )
 
-        # A signal from before/at the freeze boundary is kept
-        # for audit purposes but is NOT part of the official
-        # post-freeze forward sample.
+        key = (
+            symbol,
+            signal_date
+        )
+
+        if key in existing_keys:
+            continue
+
         official_forward = (
-            signal_date > FREEZE_DATE
-        )
-
-        metrics = signal.get(
-            "metrics",
-            {}
+            signal_date
+            > FREEZE_DATE
         )
 
         record = {
             "symbol":
-                signal.get("symbol"),
+                symbol,
 
             "signal_date":
                 signal_date,
@@ -287,7 +656,8 @@ def main():
                 (
                     "OFFICIAL_FORWARD"
                     if official_forward
-                    else "PRE_FREEZE_BOOTSTRAP"
+                    else
+                    "PRE_FREEZE_BOOTSTRAP"
                 ),
 
             "recorded_at_utc":
@@ -296,32 +666,31 @@ def main():
                 ).isoformat(),
 
             "signal_close":
-                metrics.get("price"),
+                current["price"],
 
             "ema20":
-                metrics.get("ema20"),
+                current["ema20"],
 
             "ema50":
-                metrics.get("ema50"),
+                current["ema50"],
 
             "momentum20":
-                metrics.get(
+                current[
                     "momentum20"
-                ),
+                ],
 
             "rsi14":
-                metrics.get("rsi14"),
+                current["rsi14"],
 
             "macd_histogram":
-                metrics.get(
+                current[
                     "macd_histogram"
-                ),
+                ],
 
             "conditions":
-                metrics.get(
-                    "conditions",
-                    {}
-                ),
+                current[
+                    "conditions"
+                ],
 
             "entry_definition":
                 "Next US trading day open",
@@ -354,22 +723,82 @@ def main():
                 "WAITING_FOR_ENTRY"
         }
 
-        forward["signals"].append(
+        forward.setdefault(
+            "signals",
+            []
+        ).append(
             record
         )
 
-        existing_signal_keys.add(
+        existing_keys.add(
             key
         )
 
-        added += 1
+        new_signals.append(
+            symbol
+        )
 
         print(
-            f"Added signal: "
-            f"{record['symbol']} "
-            f"{record['signal_date']} "
+            f"NEW SIGNAL: "
+            f"{symbol} "
+            f"{signal_date} "
             f"{record['sample_status']}"
         )
+
+    # --------------------------------------------------------
+    # Daily audit record.
+    # --------------------------------------------------------
+
+    forward.setdefault(
+        "daily_scans",
+        []
+    )
+
+    existing_scan_dates = {
+        row.get(
+            "evaluated_date"
+        )
+        for row
+        in forward[
+            "daily_scans"
+        ]
+    }
+
+    if (
+        evaluated_date
+        not in existing_scan_dates
+    ):
+
+        forward[
+            "daily_scans"
+        ].append({
+            "evaluated_date":
+                evaluated_date,
+
+            "recorded_at_utc":
+                datetime.now(
+                    timezone.utc
+                ).isoformat(),
+
+            "evaluated_stock_count":
+                len(downloaded),
+
+            "active_full_trend_count":
+                len(
+                    active_symbols
+                ),
+
+            "active_full_trend_symbols":
+                active_symbols,
+
+            "new_signal_count":
+                len(
+                    new_signals
+                ),
+
+            "new_signal_symbols":
+                new_signals
+        })
 
     forward[
         "last_successful_scan_market_date"
@@ -385,7 +814,11 @@ def main():
         "official_forward_signal_count"
     ] = sum(
         1
-        for row in forward["signals"]
+        for row
+        in forward.get(
+            "signals",
+            []
+        )
         if row.get(
             "official_forward_sample"
         )
@@ -395,7 +828,11 @@ def main():
         "bootstrap_signal_count"
     ] = sum(
         1
-        for row in forward["signals"]
+        for row
+        in forward.get(
+            "signals",
+            []
+        )
         if not row.get(
             "official_forward_sample",
             False
@@ -406,30 +843,58 @@ def main():
         forward
     )
 
+    print("")
     print(
-        f"New records added: {added}"
+        "=============================="
+    )
+    print(
+        "C2 FORWARD SCAN COMPLETE"
+    )
+    print(
+        "=============================="
     )
 
     print(
-        "Official forward signals: "
+        f"Market date: "
+        f"{evaluated_date}"
+    )
+
+    print(
+        f"Stocks evaluated: "
+        f"{len(downloaded)}"
+    )
+
+    print(
+        f"Active FULL: "
+        f"{len(active_symbols)}"
+    )
+
+    print(
+        f"New signals: "
+        f"{len(new_signals)}"
+    )
+
+    print(
+        f"Official forward total: "
         f"{forward['official_forward_signal_count']}"
     )
 
     print(
-        "Bootstrap signals: "
+        f"Bootstrap total: "
         f"{forward['bootstrap_signal_count']}"
     )
 
-    print("Forward file updated.")
-
 
 if __name__ == "__main__":
+
     try:
         main()
 
     except Exception as exc:
+
         print(
             f"ERROR: {exc}",
             file=sys.stderr
         )
+
         sys.exit(1)
