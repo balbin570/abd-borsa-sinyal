@@ -1,0 +1,28 @@
+{
+  "model": "C2-TREND-FROZEN",
+  "model_version": "1.0",
+  "status": "FORWARD_VALIDATION",
+  "frozen_at": "2026-09-19",
+  "rules": {
+    "price_above_ema20": true,
+    "ema20_above_ema50": true,
+    "momentum20_min": 5.0,
+    "momentum20_max": 15.0,
+    "rsi14_min": 50.0,
+    "rsi14_max": 70.0,
+    "macd_histogram_positive": true
+  },
+  "signal_definition": {
+    "type": "false_to_true_transition",
+    "description": "A new signal is recorded only when C2-TREND-FROZEN changes from false to true for a stock.",
+    "reentry": "A new signal requires the stock to first leave the FULL condition and later satisfy it again."
+  },
+  "entry_definition": "Next US trading day open",
+  "benchmark": "SPY",
+  "forward_horizons_trading_days": [
+    5,
+    10,
+    20
+  ],
+  "signals": []
+}
