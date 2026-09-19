@@ -1239,11 +1239,10 @@ def main():
         )
 
         if official_forward:
-
             record["telegram_sent"] = False
             new_official_signals.append(record)
 
-         existing_keys.add(
+        existing_keys.add(
             key
         )
 
@@ -1257,7 +1256,6 @@ def main():
             f"{signal_date} "
             f"{record['sample_status']}"
         )
-
     # ========================================================
     # UPDATE ENTRY + 5D / 10D / 20D + SPY RESULTS
     # ========================================================
