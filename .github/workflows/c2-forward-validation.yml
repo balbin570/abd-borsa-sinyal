@@ -4,9 +4,10 @@ on:
   workflow_dispatch:
 
   schedule:
-    # 22:30 UTC = Türkiye saatiyle 01:30
-    # ABD piyasası kapandıktan sonra çalışır.
-    - cron: "30 22 * * 1-5"
+    # 23:00 UTC = Türkiye 02:00
+    # Existing Telegram scan runs earlier,
+    # so Twelve Data requests do not overlap.
+    - cron: "0 23 * * 1-5"
 
 permissions:
   contents: write
@@ -18,7 +19,7 @@ concurrency:
 jobs:
   forward-validation:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 25
 
     steps:
       - name: Checkout repository
@@ -29,13 +30,18 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install httpx==0.28.1
+
       - name: Run C2 forward validation
         env:
-          STAGE8_URL: https://abd-borsa-sinyal.onrender.com/v2/stage8-forward-scan
+          TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
         run: |
           python scripts/update_forward_validation.py
 
-      - name: Show forward validation status
+      - name: Show result
         run: |
           python - <<'PY'
           import json
@@ -48,14 +54,14 @@ jobs:
               data = json.load(f)
 
           print(
-              "Last market date:",
+              "Market date:",
               data.get(
                   "last_successful_scan_market_date"
               )
           )
 
           print(
-              "Official signals:",
+              "Official forward signals:",
               data.get(
                   "official_forward_signal_count",
                   0
@@ -74,7 +80,7 @@ jobs:
       - name: Commit forward validation data
         run: |
           if git diff --quiet -- data/forward_validation.json; then
-            echo "No forward-validation changes."
+            echo "No changes to commit."
             exit 0
           fi
 
