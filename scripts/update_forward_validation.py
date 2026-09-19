@@ -24,6 +24,14 @@ API_KEY = os.environ.get(
     "TWELVE_DATA_API_KEY"
 )
 
+TELEGRAM_BOT_TOKEN = os.environ.get(
+    "TELEGRAM_BOT_TOKEN"
+)
+
+TELEGRAM_CHAT_ID = os.environ.get(
+    "TELEGRAM_CHAT_ID"
+)
+
 API_URL = (
     "https://api.twelvedata.com/time_series"
 )
@@ -787,6 +795,97 @@ def update_signal_results(
             f"{signal_date}: "
             f"{signal['result_status']}"
         )
+# ============================================================
+# TELEGRAM - OFFICIAL C2 PAPER SIGNALS
+# ============================================================
+
+def send_telegram_message(message):
+
+    if (
+        not TELEGRAM_BOT_TOKEN
+        or not TELEGRAM_CHAT_ID
+    ):
+        raise RuntimeError(
+            "Telegram secrets are missing"
+        )
+
+    url = (
+        f"https://api.telegram.org/"
+        f"bot{TELEGRAM_BOT_TOKEN}/"
+        f"sendMessage"
+    )
+
+    response = httpx.post(
+        url,
+        data={
+            "chat_id":
+                TELEGRAM_CHAT_ID,
+
+            "text":
+                message
+        },
+        timeout=30.0
+    )
+
+    response.raise_for_status()
+
+    result = response.json()
+
+    if not result.get("ok"):
+        raise RuntimeError(
+            f"Telegram error: {result}"
+        )
+
+
+def send_new_official_signals(
+    new_official_signals
+):
+
+    if not new_official_signals:
+        print(
+            "No new official C2 "
+            "Telegram signals."
+        )
+        return
+
+    for signal in new_official_signals:
+
+        message = (
+            "C2 PAPER SIGNAL\n\n"
+            f"Symbol: {signal['symbol']}\n"
+            f"Signal date: {signal['signal_date']}\n"
+            f"Close: {signal['signal_close']}\n"
+            f"EMA20: {signal['ema20']}\n"
+            f"EMA50: {signal['ema50']}\n"
+            f"Momentum20: "
+            f"{signal['momentum20']:.2f}%\n"
+            f"RSI14: {signal['rsi14']:.2f}\n"
+            f"MACD histogram: "
+            f"{signal['macd_histogram']}\n\n"
+            "Entry: next US trading day open\n"
+            "Status: FORWARD / PAPER\n\n"
+            "Model: C2-TREND-FROZEN v1.0"
+        )
+
+        send_telegram_message(
+            message
+        )
+
+        signal[
+            "telegram_sent"
+        ] = True
+
+        signal[
+            "telegram_sent_at_utc"
+        ] = datetime.now(
+            timezone.utc
+        ).isoformat()
+
+        print(
+            f"Telegram sent: "
+            f"{signal['symbol']}"
+        )
+
 
 # ============================================================
 # MAIN
@@ -965,6 +1064,7 @@ def main():
     active_symbols = []
 
     new_signals = []
+    new_official_signals = []
 
     for symbol in V2_UNIVERSE:
 
@@ -1138,7 +1238,12 @@ def main():
             record
         )
 
-        existing_keys.add(
+        if official_forward:
+
+            record["telegram_sent"] = False
+            new_official_signals.append(record)
+
+         existing_keys.add(
             key
         )
 
@@ -1257,6 +1362,14 @@ def main():
         )
     )
 
+    # ========================================================
+    # SEND ONLY NEW OFFICIAL FORWARD SIGNALS TO TELEGRAM
+    # ========================================================
+
+    send_new_official_signals(
+        new_official_signals
+    )
+    
     save_forward_file(
         forward
     )
