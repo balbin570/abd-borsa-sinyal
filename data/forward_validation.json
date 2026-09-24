@@ -90,7 +90,7 @@
       },
       "entry_definition": "Next US trading day open",
       "entry_date": "2026-09-22",
-      "entry_price": 1033.28,
+      "entry_price": 1032.85,
       "results": {
         "5d": null,
         "10d": null,
@@ -133,8 +133,8 @@
         "macd_histogram_positive": true
       },
       "entry_definition": "Next US trading day open",
-      "entry_date": null,
-      "entry_price": null,
+      "entry_date": "2026-09-23",
+      "entry_price": 341.075,
       "results": {
         "5d": null,
         "10d": null,
@@ -150,9 +150,10 @@
         "10d": null,
         "20d": null
       },
-      "result_status": "WAITING_FOR_ENTRY",
+      "result_status": "ENTRY_RECORDED",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-09-23T01:30:30.661126+00:00"
+      "telegram_sent_at_utc": "2026-09-23T01:30:30.661126+00:00",
+      "spy_entry_price": 772.79
     },
     {
       "symbol": "NVDA",
@@ -176,8 +177,8 @@
         "macd_histogram_positive": true
       },
       "entry_definition": "Next US trading day open",
-      "entry_date": null,
-      "entry_price": null,
+      "entry_date": "2026-09-23",
+      "entry_price": 228.08,
       "results": {
         "5d": null,
         "10d": null,
@@ -193,9 +194,10 @@
         "10d": null,
         "20d": null
       },
-      "result_status": "WAITING_FOR_ENTRY",
+      "result_status": "ENTRY_RECORDED",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-09-23T01:30:30.974652+00:00"
+      "telegram_sent_at_utc": "2026-09-23T01:30:30.974652+00:00",
+      "spy_entry_price": 772.79
     },
     {
       "symbol": "TSLA",
@@ -219,8 +221,8 @@
         "macd_histogram_positive": true
       },
       "entry_definition": "Next US trading day open",
-      "entry_date": null,
-      "entry_price": null,
+      "entry_date": "2026-09-23",
+      "entry_price": 379.935,
       "results": {
         "5d": null,
         "10d": null,
@@ -236,9 +238,10 @@
         "10d": null,
         "20d": null
       },
-      "result_status": "WAITING_FOR_ENTRY",
+      "result_status": "ENTRY_RECORDED",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-09-23T01:30:31.296228+00:00"
+      "telegram_sent_at_utc": "2026-09-23T01:30:31.296228+00:00",
+      "spy_entry_price": 772.79
     },
     {
       "symbol": "PANW",
@@ -254,6 +257,50 @@
       "momentum20": 6.7455,
       "rsi14": 55.0617,
       "macd_histogram": 2.53611,
+      "conditions": {
+        "price_above_ema20": true,
+        "ema20_above_ema50": true,
+        "momentum_5_to_15": true,
+        "rsi_50_to_70": true,
+        "macd_histogram_positive": true
+      },
+      "entry_definition": "Next US trading day open",
+      "entry_date": "2026-09-23",
+      "entry_price": 379.8,
+      "results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "benchmark_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "excess_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "result_status": "ENTRY_RECORDED",
+      "telegram_sent": true,
+      "telegram_sent_at_utc": "2026-09-23T01:30:31.608107+00:00",
+      "spy_entry_price": 772.79
+    },
+    {
+      "symbol": "TSLA",
+      "signal_date": "2026-09-23",
+      "model": "C2-TREND-FROZEN",
+      "model_version": "1.0",
+      "official_forward_sample": true,
+      "sample_status": "OFFICIAL_FORWARD",
+      "recorded_at_utc": "2026-09-24T01:25:10.055615+00:00",
+      "signal_close": 380.12,
+      "ema20": 363.5403,
+      "ema50": 362.5968,
+      "momentum20": 8.5282,
+      "rsi14": 61.7345,
+      "macd_histogram": 1.705145,
       "conditions": {
         "price_above_ema20": true,
         "ema20_above_ema50": true,
@@ -281,7 +328,136 @@
       },
       "result_status": "WAITING_FOR_ENTRY",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-09-23T01:30:31.608107+00:00"
+      "telegram_sent_at_utc": "2026-09-24T01:25:10.413934+00:00"
+    },
+    {
+      "symbol": "PLTR",
+      "signal_date": "2026-09-23",
+      "model": "C2-TREND-FROZEN",
+      "model_version": "1.0",
+      "official_forward_sample": true,
+      "sample_status": "OFFICIAL_FORWARD",
+      "recorded_at_utc": "2026-09-24T01:25:10.056035+00:00",
+      "signal_close": 191.79,
+      "ema20": 176.3546,
+      "ema50": 165.3185,
+      "momentum20": 11.0346,
+      "rsi14": 69.5295,
+      "macd_histogram": 0.62067,
+      "conditions": {
+        "price_above_ema20": true,
+        "ema20_above_ema50": true,
+        "momentum_5_to_15": true,
+        "rsi_50_to_70": true,
+        "macd_histogram_positive": true
+      },
+      "entry_definition": "Next US trading day open",
+      "entry_date": null,
+      "entry_price": null,
+      "results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "benchmark_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "excess_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "result_status": "WAITING_FOR_ENTRY",
+      "telegram_sent": true,
+      "telegram_sent_at_utc": "2026-09-24T01:25:10.736700+00:00"
+    },
+    {
+      "symbol": "MU",
+      "signal_date": "2026-09-23",
+      "model": "C2-TREND-FROZEN",
+      "model_version": "1.0",
+      "official_forward_sample": true,
+      "sample_status": "OFFICIAL_FORWARD",
+      "recorded_at_utc": "2026-09-24T01:25:10.056578+00:00",
+      "signal_close": 1071.88,
+      "ema20": 988.9337,
+      "ema50": 953.6041,
+      "momentum20": 14.889,
+      "rsi14": 64.24,
+      "macd_histogram": 11.411163,
+      "conditions": {
+        "price_above_ema20": true,
+        "ema20_above_ema50": true,
+        "momentum_5_to_15": true,
+        "rsi_50_to_70": true,
+        "macd_histogram_positive": true
+      },
+      "entry_definition": "Next US trading day open",
+      "entry_date": null,
+      "entry_price": null,
+      "results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "benchmark_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "excess_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "result_status": "WAITING_FOR_ENTRY",
+      "telegram_sent": true,
+      "telegram_sent_at_utc": "2026-09-24T01:25:11.073233+00:00"
+    },
+    {
+      "symbol": "MDB",
+      "signal_date": "2026-09-23",
+      "model": "C2-TREND-FROZEN",
+      "model_version": "1.0",
+      "official_forward_sample": true,
+      "sample_status": "OFFICIAL_FORWARD",
+      "recorded_at_utc": "2026-09-24T01:25:10.061676+00:00",
+      "signal_close": 428.36,
+      "ema20": 397.1789,
+      "ema50": 384.724,
+      "momentum20": 5.7888,
+      "rsi14": 66.068,
+      "macd_histogram": 4.039379,
+      "conditions": {
+        "price_above_ema20": true,
+        "ema20_above_ema50": true,
+        "momentum_5_to_15": true,
+        "rsi_50_to_70": true,
+        "macd_histogram_positive": true
+      },
+      "entry_definition": "Next US trading day open",
+      "entry_date": null,
+      "entry_price": null,
+      "results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "benchmark_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "excess_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "result_status": "WAITING_FOR_ENTRY",
+      "telegram_sent": true,
+      "telegram_sent_at_utc": "2026-09-24T01:25:11.382460+00:00"
     }
   ],
   "daily_scans": [
@@ -334,10 +510,31 @@
         "TSLA",
         "PANW"
       ]
+    },
+    {
+      "evaluated_date": "2026-09-23",
+      "recorded_at_utc": "2026-09-24T01:25:10.063742+00:00",
+      "evaluated_stock_count": 70,
+      "active_full_trend_count": 6,
+      "active_full_trend_symbols": [
+        "AAPL",
+        "NVDA",
+        "TSLA",
+        "PLTR",
+        "MU",
+        "MDB"
+      ],
+      "new_signal_count": 4,
+      "new_signal_symbols": [
+        "TSLA",
+        "PLTR",
+        "MU",
+        "MDB"
+      ]
     }
   ],
-  "last_successful_scan_market_date": "2026-09-22",
-  "last_updated_at_utc": "2026-09-23T01:30:30.337147+00:00",
-  "official_forward_signal_count": 5,
+  "last_successful_scan_market_date": "2026-09-23",
+  "last_updated_at_utc": "2026-09-24T01:25:10.063749+00:00",
+  "official_forward_signal_count": 9,
   "bootstrap_signal_count": 1
 }
