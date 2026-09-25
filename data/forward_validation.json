@@ -134,7 +134,7 @@
       },
       "entry_definition": "Next US trading day open",
       "entry_date": "2026-09-23",
-      "entry_price": 341.075,
+      "entry_price": 341.08,
       "results": {
         "5d": null,
         "10d": null,
@@ -178,7 +178,7 @@
       },
       "entry_definition": "Next US trading day open",
       "entry_date": "2026-09-23",
-      "entry_price": 228.08,
+      "entry_price": 228.03,
       "results": {
         "5d": null,
         "10d": null,
@@ -222,7 +222,7 @@
       },
       "entry_definition": "Next US trading day open",
       "entry_date": "2026-09-23",
-      "entry_price": 379.935,
+      "entry_price": 380.1,
       "results": {
         "5d": null,
         "10d": null,
@@ -309,8 +309,8 @@
         "macd_histogram_positive": true
       },
       "entry_definition": "Next US trading day open",
-      "entry_date": null,
-      "entry_price": null,
+      "entry_date": "2026-09-24",
+      "entry_price": 377.35,
       "results": {
         "5d": null,
         "10d": null,
@@ -326,9 +326,10 @@
         "10d": null,
         "20d": null
       },
-      "result_status": "WAITING_FOR_ENTRY",
+      "result_status": "ENTRY_RECORDED",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-09-24T01:25:10.413934+00:00"
+      "telegram_sent_at_utc": "2026-09-24T01:25:10.413934+00:00",
+      "spy_entry_price": 764.065
     },
     {
       "symbol": "PLTR",
@@ -352,8 +353,8 @@
         "macd_histogram_positive": true
       },
       "entry_definition": "Next US trading day open",
-      "entry_date": null,
-      "entry_price": null,
+      "entry_date": "2026-09-24",
+      "entry_price": 189.2,
       "results": {
         "5d": null,
         "10d": null,
@@ -369,9 +370,10 @@
         "10d": null,
         "20d": null
       },
-      "result_status": "WAITING_FOR_ENTRY",
+      "result_status": "ENTRY_RECORDED",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-09-24T01:25:10.736700+00:00"
+      "telegram_sent_at_utc": "2026-09-24T01:25:10.736700+00:00",
+      "spy_entry_price": 764.065
     },
     {
       "symbol": "MU",
@@ -395,8 +397,8 @@
         "macd_histogram_positive": true
       },
       "entry_definition": "Next US trading day open",
-      "entry_date": null,
-      "entry_price": null,
+      "entry_date": "2026-09-24",
+      "entry_price": 1049.75,
       "results": {
         "5d": null,
         "10d": null,
@@ -412,9 +414,10 @@
         "10d": null,
         "20d": null
       },
-      "result_status": "WAITING_FOR_ENTRY",
+      "result_status": "ENTRY_RECORDED",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-09-24T01:25:11.073233+00:00"
+      "telegram_sent_at_utc": "2026-09-24T01:25:11.073233+00:00",
+      "spy_entry_price": 764.065
     },
     {
       "symbol": "MDB",
@@ -438,8 +441,8 @@
         "macd_histogram_positive": true
       },
       "entry_definition": "Next US trading day open",
-      "entry_date": null,
-      "entry_price": null,
+      "entry_date": "2026-09-24",
+      "entry_price": 425.09,
       "results": {
         "5d": null,
         "10d": null,
@@ -455,9 +458,10 @@
         "10d": null,
         "20d": null
       },
-      "result_status": "WAITING_FOR_ENTRY",
+      "result_status": "ENTRY_RECORDED",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-09-24T01:25:11.382460+00:00"
+      "telegram_sent_at_utc": "2026-09-24T01:25:11.382460+00:00",
+      "spy_entry_price": 764.065
     }
   ],
   "daily_scans": [
@@ -531,10 +535,23 @@
         "MU",
         "MDB"
       ]
+    },
+    {
+      "evaluated_date": "2026-09-24",
+      "recorded_at_utc": "2026-09-25T01:27:25.221937+00:00",
+      "evaluated_stock_count": 70,
+      "active_full_trend_count": 3,
+      "active_full_trend_symbols": [
+        "AAPL",
+        "TSLA",
+        "PLTR"
+      ],
+      "new_signal_count": 0,
+      "new_signal_symbols": []
     }
   ],
-  "last_successful_scan_market_date": "2026-09-23",
-  "last_updated_at_utc": "2026-09-24T01:25:10.063749+00:00",
+  "last_successful_scan_market_date": "2026-09-24",
+  "last_updated_at_utc": "2026-09-25T01:27:25.221953+00:00",
   "official_forward_signal_count": 9,
   "bootstrap_signal_count": 1
 }
