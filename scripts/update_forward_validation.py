@@ -1115,11 +1115,39 @@ def main():
                 symbol
             )
 
+        # Prefer the previous day's SAVED, completed scan state.
+        # Recalculating yesterday with today's sliding 100-bar
+        # history can change the EMA seed and create false
+        # false-to-true transitions near the EMA boundary.
+        previous_date = values[-2]["datetime"]
+        previous_scan = next(
+            (
+                scan for scan in reversed(
+                    forward.get("daily_scans", [])
+                )
+                if scan.get("evaluated_date") == previous_date
+                and scan.get("evaluated_stock_count") == len(V2_UNIVERSE)
+                and isinstance(scan.get("active_full_trend_symbols"), list)
+            ),
+            None,
+        )
+
+        if previous_scan is not None:
+            previous_full_trend = (
+                symbol in previous_scan["active_full_trend_symbols"]
+            )
+        else:
+            # On an absent previous-day scan, use the same-history
+            # indicator calculation; never invent a saved state.
+            previous_full_trend = previous["full_trend"]
+            print(
+                f"{symbol}: no saved scan for {previous_date}; "
+                "using calculated previous-bar state"
+            )
+
         new_signal = (
             current["full_trend"]
-            and not previous[
-                "full_trend"
-            ]
+            and not previous_full_trend
         )
 
         if not new_signal:
