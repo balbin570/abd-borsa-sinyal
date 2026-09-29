@@ -117,6 +117,7 @@ def build_panel(stock_data: dict, spy_values: list, universe=None, min_bars=300)
     panel["dates"] = dates
     panel["symbols"] = list(panel["close"].columns)
     panel["spy_close"] = spy["close"]
+    panel["spy_open"] = spy["open"]
     return panel
 
 
