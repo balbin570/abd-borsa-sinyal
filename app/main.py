@@ -9042,3 +9042,9 @@ from app.strategy_v3 import make_router
 app.include_router(
     make_router(lambda: STOCK_CACHE, lambda: SPY_CACHE, V2_UNIVERSE)
 )
+
+from app.tracker_v3 import make_tracker_router
+
+app.include_router(
+    make_tracker_router(lambda: STOCK_CACHE, lambda: SPY_CACHE, V2_UNIVERSE)
+)
