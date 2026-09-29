@@ -9036,3 +9036,9 @@ async def stage8_forward_scan():
         "errors":
             errors
     }
+
+from app.strategy_v3 import make_router
+
+app.include_router(
+    make_router(lambda: STOCK_CACHE, lambda: SPY_CACHE, V2_UNIVERSE)
+)
