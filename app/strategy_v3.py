@@ -179,8 +179,17 @@ def prepare(panel, p: Params):
 #   Karar: gün t kapanışında  ->  emir: gün t+1 açılışında
 #   Stop : ertesi günlerin en düşüğü stop'a değerse, min(açılış, stop)'ta çıkış
 # ----------------------------------------------------------------------
-def run(panel, p: Params, start_date=None, end_date=None):
-    ind = prepare(panel, p)
+def run(panel, p: Params, start_date=None, end_date=None,
+        select="momentum", seed=None, ind=None):
+    """
+    select:
+      "momentum"         -> gerçek strateji (momentum sıralaması)
+      "random_eligible"  -> trend filtresini geçenler arasından RASTGELE seç
+      "random_universe"  -> tüm evrenden RASTGELE seç (sadece piyasa filtresi + stop)
+    """
+    if ind is None:
+        ind = prepare(panel, p)
+    rng = np.random.default_rng(seed)
     dates = panel["dates"]
     syms = panel["symbols"]
 
@@ -276,10 +285,20 @@ def run(panel, p: Params, start_date=None, end_date=None):
             if not mok[t]:
                 pending_sell = set(pos.keys())        # piyasa zayıf -> nakit
             else:
-                cand = np.where(elig[t])[0]
-                order = cand[np.argsort(-score[t, cand])]
-                rank = {int(j): r + 1 for r, j in enumerate(order)}
-                keep = [j for j in pos if rank.get(j, 10 ** 9) <= p.hold_rank]
+                if select == "momentum":
+                    cand = np.where(elig[t])[0]
+                    order = cand[np.argsort(-score[t, cand])]
+                    rank = {int(j): r + 1 for r, j in enumerate(order)}
+                    keep = [j for j in pos if rank.get(j, 10 ** 9) <= p.hold_rank]
+                elif select == "random_eligible":
+                    pool = np.where(elig[t])[0]
+                    order = rng.permutation(pool)
+                    pool_set = {int(j) for j in pool}
+                    keep = [j for j in pos if j in pool_set]
+                else:  # random_universe
+                    pool = np.where(np.isfinite(C[t]) & np.isfinite(atr[t]))[0]
+                    order = rng.permutation(pool)
+                    keep = list(pos.keys())
                 pending_sell = set(pos.keys()) - set(keep)
 
                 slots = p.top_n - len(keep)
@@ -456,6 +475,64 @@ def sensitivity(panel, base: Params, start_date=None, end_date=None):
     }
 
 
+def random_control(panel, p: Params, n_sims=50, start_date=None, end_date=None):
+    """
+    Momentum sıralamasının gerçekten bir bilgi taşıyıp taşımadığını ölçer.
+    Aynı stop / pozisyon boyutu / maliyet / piyasa filtresiyle hisseleri
+    rastgele seçen n_sims simülasyon çalıştırır ve gerçek sonuçla kıyaslar.
+    """
+    n_sims = int(min(max(n_sims, 10), 300))
+    ind = prepare(panel, p)
+
+    real = run(panel, p, start_date, end_date, ind=ind)
+    real_m = perf_metrics(real["equity"])
+    spy, _ = _benchmarks(panel, real["dates"])
+    spy_m = perf_metrics(spy)
+
+    def summarize(mode):
+        cagr, sharpe, dd = [], [], []
+        for k in range(n_sims):
+            res = run(panel, p, start_date, end_date,
+                      select=mode, seed=k, ind=ind)
+            m = perf_metrics(res["equity"])
+            cagr.append(m["cagr_pct"])
+            sharpe.append(m["sharpe"])
+            dd.append(m["max_drawdown_pct"])
+        cagr, sharpe, dd = map(np.array, (cagr, sharpe, dd))
+        pct = lambda a: {
+            "p05": round(float(np.percentile(a, 5)), 2),
+            "median": round(float(np.percentile(a, 50)), 2),
+            "p95": round(float(np.percentile(a, 95)), 2),
+        }
+        return {
+            "simulations": n_sims,
+            "cagr_pct": pct(cagr),
+            "sharpe": pct(sharpe),
+            "max_drawdown_pct": pct(dd),
+            "share_of_random_runs_with_cagr_ge_real_pct": round(
+                float((cagr >= real_m["cagr_pct"]).mean() * 100), 1),
+            "share_of_random_runs_with_sharpe_ge_real_pct": round(
+                float((sharpe >= real_m["sharpe"]).mean() * 100), 1),
+        }
+
+    return {
+        "real_strategy": real_m,
+        "spy_buy_hold": spy_m,
+        "random_among_trend_eligible": summarize("random_eligible"),
+        "random_from_whole_universe": summarize("random_universe"),
+        "how_to_read": (
+            "share_of_random_runs_with_..._ge_real: rastgele seçimin gerçek "
+            "stratejiyi yakaladığı ya da geçtiği simülasyonların yüzdesi. "
+            "%20'nin altı momentum sıralamasında bir bilgi olabileceğini, "
+            "%30-50 ve üzeri sıralamanın değersiz olduğunu gösterir. "
+            "random_among_trend_eligible sadece SIRALAMAYI, "
+            "random_from_whole_universe ise tüm SEÇİM mantığını (trend filtresi "
+            "dahil) test eder. Evren hindsight ile seçildiği için iki rastgele "
+            "kontrol de iyimserdir."
+        ),
+    }
+
+
 # ----------------------------------------------------------------------
 # CANLI ÖNERİLER (son tamamlanmış günlük bar üzerinden)
 # ----------------------------------------------------------------------
@@ -543,6 +620,14 @@ def make_router(get_stock_cache, get_spy_cache, universe=None):
     @router.get("/sensitivity")
     def v3_sensitivity(start_date: str = None, end_date: str = None):
         return sensitivity(_panel(), Params(), start_date, end_date)
+
+    @router.get("/random-control")
+    def v3_random_control(n_sims: int = 50, start_date: str = None,
+                          end_date: str = None):
+        try:
+            return random_control(_panel(), Params(), n_sims, start_date, end_date)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
     @router.get("/picks")
     def v3_picks(top_n: int = 5, limit: int = 15):
