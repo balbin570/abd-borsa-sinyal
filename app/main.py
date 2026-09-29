@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 import httpx
 
-app = FastAPI(title="ABD Borsa Sinyal", version="2.0")
+app = FastAPI(title="ABD Borsa Sinyal", version="2.0")  
 SPY_CACHE = None
 SPY_CACHE_DATE = None
 STOCK_CACHE = {}
