@@ -101,24 +101,33 @@
       "entry_date": "2026-09-22",
       "entry_price": 1032.85,
       "results": {
-        "5d": null,
+        "5d": 2.0458,
         "10d": null,
         "20d": null
       },
       "benchmark_results": {
-        "5d": null,
+        "5d": -1.0878,
         "10d": null,
         "20d": null
       },
       "excess_results": {
-        "5d": null,
+        "5d": 3.1336,
         "10d": null,
         "20d": null
       },
-      "result_status": "ENTRY_RECORDED",
+      "result_status": "COMPLETE_5D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-09-22T01:41:01.012207+00:00",
-      "spy_entry_price": 774.03
+      "spy_entry_price": 774.03,
+      "exit_dates": {
+        "5d": "2026-09-28"
+      },
+      "exit_prices": {
+        "5d": 1053.98
+      },
+      "spy_exit_prices": {
+        "5d": 765.61
+      }
     },
     {
       "symbol": "AAPL",
@@ -494,6 +503,50 @@
         "macd_histogram_positive": true
       },
       "entry_definition": "Next US trading day open",
+      "entry_date": "2026-09-28",
+      "entry_price": 192.02,
+      "results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "benchmark_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "excess_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "result_status": "ENTRY_RECORDED",
+      "telegram_sent": true,
+      "telegram_sent_at_utc": "2026-09-26T01:29:37.916752+00:00",
+      "spy_entry_price": 768.35
+    },
+    {
+      "symbol": "NVDA",
+      "signal_date": "2026-09-28",
+      "model": "C2-TREND-FROZEN",
+      "model_version": "1.0",
+      "official_forward_sample": true,
+      "sample_status": "OFFICIAL_FORWARD",
+      "recorded_at_utc": "2026-09-29T02:41:42.698765+00:00",
+      "signal_close": 228.86,
+      "ema20": 222.1991,
+      "ema50": 218.3277,
+      "momentum20": 5.1988,
+      "rsi14": 53.7939,
+      "macd_histogram": 0.54922,
+      "conditions": {
+        "price_above_ema20": true,
+        "ema20_above_ema50": true,
+        "momentum_5_to_15": true,
+        "rsi_50_to_70": true,
+        "macd_histogram_positive": true
+      },
+      "entry_definition": "Next US trading day open",
       "entry_date": null,
       "entry_price": null,
       "results": {
@@ -513,7 +566,93 @@
       },
       "result_status": "WAITING_FOR_ENTRY",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-09-26T01:29:37.916752+00:00"
+      "telegram_sent_at_utc": "2026-09-29T02:41:43.210256+00:00"
+    },
+    {
+      "symbol": "QCOM",
+      "signal_date": "2026-09-28",
+      "model": "C2-TREND-FROZEN",
+      "model_version": "1.0",
+      "official_forward_sample": true,
+      "sample_status": "OFFICIAL_FORWARD",
+      "recorded_at_utc": "2026-09-29T02:41:42.700282+00:00",
+      "signal_close": 187.48,
+      "ema20": 184.2604,
+      "ema50": 180.6186,
+      "momentum20": 14.1848,
+      "rsi14": 58.1716,
+      "macd_histogram": 1.145131,
+      "conditions": {
+        "price_above_ema20": true,
+        "ema20_above_ema50": true,
+        "momentum_5_to_15": true,
+        "rsi_50_to_70": true,
+        "macd_histogram_positive": true
+      },
+      "entry_definition": "Next US trading day open",
+      "entry_date": null,
+      "entry_price": null,
+      "results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "benchmark_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "excess_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "result_status": "WAITING_FOR_ENTRY",
+      "telegram_sent": true,
+      "telegram_sent_at_utc": "2026-09-29T02:41:43.683370+00:00"
+    },
+    {
+      "symbol": "MU",
+      "signal_date": "2026-09-28",
+      "model": "C2-TREND-FROZEN",
+      "model_version": "1.0",
+      "official_forward_sample": true,
+      "sample_status": "OFFICIAL_FORWARD",
+      "recorded_at_utc": "2026-09-29T02:41:42.700452+00:00",
+      "signal_close": 1053.98,
+      "ema20": 1010.3099,
+      "ema50": 970.0215,
+      "momentum20": 12.9837,
+      "rsi14": 57.2898,
+      "macd_histogram": 8.874823,
+      "conditions": {
+        "price_above_ema20": true,
+        "ema20_above_ema50": true,
+        "momentum_5_to_15": true,
+        "rsi_50_to_70": true,
+        "macd_histogram_positive": true
+      },
+      "entry_definition": "Next US trading day open",
+      "entry_date": null,
+      "entry_price": null,
+      "results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "benchmark_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "excess_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "result_status": "WAITING_FOR_ENTRY",
+      "telegram_sent": true,
+      "telegram_sent_at_utc": "2026-09-29T02:41:44.175029+00:00"
     }
   ],
   "daily_scans": [
@@ -613,10 +752,27 @@
       "new_signal_symbols": [
         "OKTA"
       ]
+    },
+    {
+      "evaluated_date": "2026-09-28",
+      "recorded_at_utc": "2026-09-29T02:41:42.707433+00:00",
+      "evaluated_stock_count": 70,
+      "active_full_trend_count": 3,
+      "active_full_trend_symbols": [
+        "NVDA",
+        "QCOM",
+        "MU"
+      ],
+      "new_signal_count": 3,
+      "new_signal_symbols": [
+        "NVDA",
+        "QCOM",
+        "MU"
+      ]
     }
   ],
-  "last_successful_scan_market_date": "2026-09-25",
-  "last_updated_at_utc": "2026-09-26T01:29:37.300907+00:00",
-  "official_forward_signal_count": 10,
+  "last_successful_scan_market_date": "2026-09-28",
+  "last_updated_at_utc": "2026-09-29T02:41:42.707443+00:00",
+  "official_forward_signal_count": 13,
   "bootstrap_signal_count": 1
 }
