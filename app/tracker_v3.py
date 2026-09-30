@@ -1,45 +1,46 @@
 """
-tracker_v3.py  -  İleriye dönük (paper) takip + izleme paneli
+tracker_v3.py  -  Ä°leriye dÃ¶nÃ¼k (paper) takip + izleme paneli
 =============================================================
 
-Amaç: strategy_v3 kurallarını DONDURUP, gerçek zamanlı olarak seçimleri kaydetmek
-ve birkaç ay sonra "bu seçimlerde gerçekten bir bilgi var mı?" sorusunu
+AmaÃ§: strategy_v3 kurallarÄ±nÄ± DONDURUP, gerÃ§ek zamanlÄ± olarak seÃ§imleri kaydetmek
+ve birkaÃ§ ay sonra "bu seÃ§imlerde gerÃ§ekten bir bilgi var mÄ±?" sorusunu
 cevaplamak. Para riski yoktur.
 
-Nasıl çalışır
+NasÄ±l Ã§alÄ±ÅŸÄ±r
 -------------
-1. /v3/track/run (dışarıdan cron ile her iş günü ABD kapanışından sonra çağrılır):
-   a) 71 sembol için son ~200 günlük barı Twelve Data'dan çeker ve snapshot'a ekler
-      (dakikada 7 çağrı -> yaklaşık 10 dakika, arka planda çalışır).
-   b) Son kohort üzerinden >= 5 işlem günü geçtiyse YENİ KOHORT kaydeder:
-      o günün top_n seçimi (dondurulmuş kurallarla).
-   c) Tüm kohortların 5/10/20 günlük sonuçlarını hesaplar; SPY, tüm evren ve
-      rastgele seçimle kıyaslar.
-   d) İsteğe bağlı: Telegram'a özet gönderir (kalıcı, zaman damgalı bir kayıt olur).
-2. /v3/dashboard: piyasa filtresi, güncel seçimler, takip özeti, 70 hissenin durumu.
+1. /v3/track/run (dÄ±ÅŸarÄ±dan cron ile her iÅŸ gÃ¼nÃ¼ ABD kapanÄ±ÅŸÄ±ndan sonra Ã§aÄŸrÄ±lÄ±r):
+   a) 71 sembol iÃ§in son ~200 gÃ¼nlÃ¼k barÄ± Twelve Data'dan Ã§eker ve snapshot'a ekler
+      (dakikada 7 Ã§aÄŸrÄ± -> yaklaÅŸÄ±k 10 dakika, arka planda Ã§alÄ±ÅŸÄ±r).
+   b) Son kohort Ã¼zerinden >= 5 iÅŸlem gÃ¼nÃ¼ geÃ§tiyse YENÄ° KOHORT kaydeder:
+      o gÃ¼nÃ¼n top_n seÃ§imi (dondurulmuÅŸ kurallarla).
+   c) TÃ¼m kohortlarÄ±n 5/10/20 gÃ¼nlÃ¼k sonuÃ§larÄ±nÄ± hesaplar; SPY, tÃ¼m evren ve
+      rastgele seÃ§imle kÄ±yaslar.
+   d) Ä°steÄŸe baÄŸlÄ±: Telegram'a Ã¶zet gÃ¶nderir (kalÄ±cÄ±, zaman damgalÄ± bir kayÄ±t olur).
+2. /v3/dashboard: piyasa filtresi, gÃ¼ncel seÃ§imler, takip Ã¶zeti, 70 hissenin durumu.
 
-Kalıcılık (ÖNEMLİ)
+KalÄ±cÄ±lÄ±k (Ã–NEMLÄ°)
 ------------------
-Kohortlar TRACK_DIR (varsayılan /code/track) içindeki cohorts.jsonl dosyasına yazılır.
-Render'ın ücretsiz planında dosya sistemi her deploy/yeniden başlatmada SIFIRLANIR.
-Bu yüzden ya (a) Render Disk bağlayıp TRACK_DIR'i oraya ayarlayın, ya da (b)
-Telegram bildirimini açık tutun: her kohort Telegram'a da yazılır ve kayıp
-olursa oradan geri yüklenebilir.
+Kohortlar TRACK_DIR (varsayÄ±lan /code/track) iÃ§indeki cohorts.jsonl dosyasÄ±na yazÄ±lÄ±r.
+Render'Ä±n Ã¼cretsiz planÄ±nda dosya sistemi her deploy/yeniden baÅŸlatmada SIFIRLANIR.
+Bu yÃ¼zden ya (a) Render Disk baÄŸlayÄ±p TRACK_DIR'i oraya ayarlayÄ±n, ya da (b)
+Telegram bildirimini aÃ§Ä±k tutun: her kohort Telegram'a da yazÄ±lÄ±r ve kayÄ±p
+olursa oradan geri yÃ¼klenebilir.
 
-Ortam değişkenleri (zaten olanlar): TWELVE_DATA_API_KEY, WEBHOOK_SECRET,
-TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID. İsteğe bağlı: TRACK_DIR.
+Ortam deÄŸiÅŸkenleri (zaten olanlar): TWELVE_DATA_API_KEY, WEBHOOK_SECRET,
+TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID. Ä°steÄŸe baÄŸlÄ±: TRACK_DIR.
 
-Kullanım (main.py en altı):
+KullanÄ±m (main.py en altÄ±):
 
     from app.tracker_v3 import make_tracker_router
     app.include_router(
         make_tracker_router(lambda: STOCK_CACHE, lambda: SPY_CACHE, V2_UNIVERSE)
     )
 
-Bu bir alım tavsiyesi değildir; araştırma ve paper takip aracıdır.
+Bu bir alÄ±m tavsiyesi deÄŸildir; araÅŸtÄ±rma ve paper takip aracÄ±dÄ±r.
 """
 
 import asyncio
+import base64
 import hashlib
 import html
 import json
@@ -60,15 +61,15 @@ except ImportError:  # yerel test
 
 
 # ----------------------------------------------------------------------
-# DONDURULMUŞ KURALLAR
+# DONDURULMUÅ KURALLAR
 # ----------------------------------------------------------------------
-RULES = sv.Params()   # varsayılan değerler = dondurulmuş kurallar
+RULES = sv.Params()   # varsayÄ±lan deÄŸerler = dondurulmuÅŸ kurallar
 RULES_HASH = hashlib.sha1(
     json.dumps(asdict(RULES), sort_keys=True).encode()
 ).hexdigest()[:10]
 
-COHORT_SPACING_DAYS = 5      # yeni kohort için asgari işlem günü aralığı
-MIN_COHORTS_FOR_VERDICT = 26  # ~6 ay haftalık kohort
+COHORT_SPACING_DAYS = 5      # yeni kohort iÃ§in asgari iÅŸlem gÃ¼nÃ¼ aralÄ±ÄŸÄ±
+MIN_COHORTS_FOR_VERDICT = 26  # ~6 ay haftalÄ±k kohort
 
 TRACK_DIR = Path(os.getenv("TRACK_DIR", "/code/track"))
 COHORT_FILE = TRACK_DIR / "cohorts.jsonl"
@@ -89,7 +90,7 @@ _PANEL_CACHE = {"key": None, "panel": None}
 
 
 # ----------------------------------------------------------------------
-# DOSYA G/Ç
+# DOSYA G/Ã‡
 # ----------------------------------------------------------------------
 def _ensure_dir():
     try:
@@ -99,22 +100,158 @@ def _ensure_dir():
         return False
 
 
+# ----------------------------------------------------------------------
+# GITHUB KALICI KOHORT KAYDI
+# ----------------------------------------------------------------------
+# Render Environment:
+# GITHUB_TOKEN = fine-grained token (Contents: Read and write)
+# GITHUB_REPO  = owner/repo
+# Opsiyonel: GITHUB_BRANCH=main, GITHUB_COHORT_PATH=track/cohorts.jsonl
+GITHUB_REPO = os.getenv("GITHUB_REPO", "").strip()
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
+GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main").strip() or "main"
+GITHUB_COHORT_PATH = os.getenv(
+    "GITHUB_COHORT_PATH", "track/cohorts.jsonl"
+).strip().lstrip("/")
+
+
+def _github_enabled():
+    return bool(GITHUB_REPO and GITHUB_TOKEN)
+
+
+def _github_headers():
+    return {
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "abd-borsa-sinyal-tracker",
+    }
+
+
+def _parse_cohort_text(raw):
+    out = []
+    for line in (raw or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            item = json.loads(line)
+            if isinstance(item, dict) and item.get("signal_date"):
+                out.append(item)
+        except Exception:
+            continue
+    # AynÄ± gÃ¼n iki kayÄ±t varsa sonuncuyu tut.
+    by_date = {x["signal_date"]: x for x in out}
+    return sorted(by_date.values(), key=lambda x: x["signal_date"])
+
+
+def _cohorts_to_text(cohorts):
+    return "".join(
+        json.dumps(x, ensure_ascii=False) + "\n"
+        for x in sorted(cohorts, key=lambda c: c["signal_date"])
+    )
+
+
+def _write_local_cohorts(cohorts):
+    """GitHub kaydÄ±nÄ±n Render Ã¼zerindeki geÃ§ici aynasÄ±."""
+    if not _ensure_dir():
+        return False
+    try:
+        COHORT_FILE.write_text(_cohorts_to_text(cohorts), encoding="utf-8")
+        return True
+    except Exception:
+        return False
+
+
+def _github_read_cohorts():
+    url = (
+        f"https://api.github.com/repos/{GITHUB_REPO}/contents/"
+        f"{GITHUB_COHORT_PATH}"
+    )
+    with httpx.Client(timeout=20) as client:
+        r = client.get(
+            url,
+            headers=_github_headers(),
+            params={"ref": GITHUB_BRANCH},
+        )
+
+    if r.status_code == 404:
+        return [], None
+    if r.status_code != 200:
+        raise RuntimeError(
+            f"GitHub cohort read failed: HTTP {r.status_code}"
+        )
+
+    data = r.json()
+    encoded = (data.get("content") or "").replace("\n", "")
+    try:
+        raw = base64.b64decode(encoded).decode("utf-8") if encoded else ""
+    except Exception as exc:
+        raise RuntimeError(
+            f"GitHub cohort decode failed: {type(exc).__name__}"
+        ) from exc
+
+    return _parse_cohort_text(raw), data.get("sha")
+
+
+def _github_write_cohorts(cohorts, sha=None):
+    url = (
+        f"https://api.github.com/repos/{GITHUB_REPO}/contents/"
+        f"{GITHUB_COHORT_PATH}"
+    )
+    raw = _cohorts_to_text(cohorts).encode("utf-8")
+    payload = {
+        "message": "tracker: update cohorts "
+                   + datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "content": base64.b64encode(raw).decode("ascii"),
+        "branch": GITHUB_BRANCH,
+    }
+    if sha:
+        payload["sha"] = sha
+
+    with httpx.Client(timeout=30) as client:
+        r = client.put(url, headers=_github_headers(), json=payload)
+
+    if r.status_code not in (200, 201):
+        raise RuntimeError(
+            f"GitHub cohort write failed: HTTP {r.status_code}"
+        )
+    return True
+
+
 def load_cohorts():
+    # GitHub ayarlÄ±ysa tek kalÄ±cÄ± kaynak GitHub'dÄ±r.
+    if _github_enabled():
+        cohorts, _ = _github_read_cohorts()
+        _write_local_cohorts(cohorts)
+        return cohorts
+
+    # GitHub yoksa eski yerel davranÄ±ÅŸ korunur.
     if not COHORT_FILE.exists():
         return []
-    out = []
-    with COHORT_FILE.open("r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                try:
-                    out.append(json.loads(line))
-                except Exception:
-                    continue
-    return sorted(out, key=lambda c: c["signal_date"])
+    try:
+        return _parse_cohort_text(COHORT_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return []
 
 
 def append_cohort(cohort):
+    # GitHub etkinse uzak dosyayÄ± tekrar okuyup aynÄ± tarih kontrolÃ¼ yap.
+    if _github_enabled():
+        cohorts, sha = _github_read_cohorts()
+        if any(
+            c.get("signal_date") == cohort.get("signal_date")
+            for c in cohorts
+        ):
+            _write_local_cohorts(cohorts)
+            return True
+
+        cohorts.append(cohort)
+        cohorts = sorted(cohorts, key=lambda c: c["signal_date"])
+        _github_write_cohorts(cohorts, sha=sha)
+        _write_local_cohorts(cohorts)
+        return True
+
     if not _ensure_dir():
         return False
     with COHORT_FILE.open("a", encoding="utf-8") as f:
@@ -136,6 +273,8 @@ def _load_live():
 
 
 def _save_live():
+    # live_prices.json geÃ§ici olabilir; her taramada Twelve Data'dan yenilenir.
+    # GitHub'a yalnÄ±z uzun dÃ¶nem iÃ§in gerekli kohort geÃ§miÅŸini kaydediyoruz.
     if not _ensure_dir():
         return
     try:
@@ -145,19 +284,19 @@ def _save_live():
 
 
 # ----------------------------------------------------------------------
-# VERİ ÇEKME
+# VERÄ° Ã‡EKME
 # ----------------------------------------------------------------------
 def _now_et():
     try:
         from zoneinfo import ZoneInfo
         return datetime.now(ZoneInfo("America/New_York"))
     except Exception:
-        # tzdata yoksa sabit UTC-5 (yaz saatinde daha temkinli davranır)
+        # tzdata yoksa sabit UTC-5 (yaz saatinde daha temkinli davranÄ±r)
         return datetime.now(timezone(timedelta(hours=-5)))
 
 
 def _bar_is_incomplete(bar_date: str) -> bool:
-    """Bugüne ait bar, ABD kapanışından (16:30 ET) önce tamamlanmamıştır."""
+    """BugÃ¼ne ait bar, ABD kapanÄ±ÅŸÄ±ndan (16:30 ET) Ã¶nce tamamlanmamÄ±ÅŸtÄ±r."""
     now = _now_et()
     if bar_date[:10] != now.strftime("%Y-%m-%d"):
         return False
@@ -165,7 +304,7 @@ def _bar_is_incomplete(bar_date: str) -> bool:
 
 
 async def fetch_recent(symbols, api_key, outputsize=200, per_minute=7, progress=None):
-    """Twelve Data'dan son barları çeker. Ücretsiz plan limiti için yavaştır."""
+    """Twelve Data'dan son barlarÄ± Ã§eker. Ãœcretsiz plan limiti iÃ§in yavaÅŸtÄ±r."""
     out, errors = {}, {}
     url = "https://api.twelvedata.com/time_series"
     async with httpx.AsyncClient(timeout=30) as client:
@@ -207,14 +346,14 @@ def _merge_live(new_bars):
     for sym, bars in new_bars.items():
         cur = LIVE.setdefault(sym, {})
         cur.update(bars)
-        for d in sorted(cur.keys())[:-300]:   # son 300 barı tut
+        for d in sorted(cur.keys())[:-300]:   # son 300 barÄ± tut
             del cur[d]
     _LIVE_VERSION += 1
     _save_live()
 
 
 def merged_panel(stock_cache, spy_values, universe=None):
-    """Snapshot (tarihsel) + canlı barlar -> panel. STOCK_CACHE'e dokunmaz."""
+    """Snapshot (tarihsel) + canlÄ± barlar -> panel. STOCK_CACHE'e dokunmaz."""
     _load_live()
     key = (_LIVE_VERSION, len(stock_cache or {}), len(spy_values or []))
     if _PANEL_CACHE["key"] == key and _PANEL_CACHE["panel"] is not None:
@@ -247,11 +386,11 @@ def create_cohort_if_due(panel, force=False):
     cohorts = load_cohorts()
 
     if any(c["signal_date"] == date_str for c in cohorts):
-        return None, "bu tarih zaten kayıtlı"
+        return None, "bu tarih zaten kayÄ±tlÄ±"
     if cohorts and not force:
         last_idx = int(dates.searchsorted(pd.Timestamp(cohorts[-1]["signal_date"])))
         if t - last_idx < COHORT_SPACING_DAYS:
-            return None, f"yeni kohort için henüz erken (aralık {COHORT_SPACING_DAYS} işlem günü)"
+            return None, f"yeni kohort iÃ§in henÃ¼z erken (aralÄ±k {COHORT_SPACING_DAYS} iÅŸlem gÃ¼nÃ¼)"
 
     info = sv.current_picks(panel, RULES, limit=RULES.top_n)
     last_bar = panel["close"].iloc[-1]
@@ -274,11 +413,11 @@ def create_cohort_if_due(panel, force=False):
         "stale_symbols": stale,
     }
     saved = append_cohort(cohort)
-    return cohort, "kaydedildi" if saved else "KAYDEDİLEMEDİ (TRACK_DIR yazılamıyor)"
+    return cohort, "kaydedildi" if saved else "KAYDEDÄ°LEMEDÄ° (TRACK_DIR yazÄ±lamÄ±yor)"
 
 
 # ----------------------------------------------------------------------
-# DEĞERLENDİRME
+# DEÄERLENDÄ°RME
 # ----------------------------------------------------------------------
 def evaluate_cohorts(panel, cohorts, horizons=(5, 10, 20), n_random=500, seed=42):
     dates = panel["dates"]
@@ -362,17 +501,17 @@ def evaluate_cohorts(panel, cohorts, horizons=(5, 10, 20), n_random=500, seed=42
     a20 = by_h.get("20d", {})
     if n20 < MIN_COHORTS_FOR_VERDICT:
         verdict = (
-            f"YETERSİZ VERİ: 20 günlük sonucu olan {n20} kohort var; "
-            f"herhangi bir yargı için en az {MIN_COHORTS_FOR_VERDICT} gerekir."
+            f"YETERSÄ°Z VERÄ°: 20 gÃ¼nlÃ¼k sonucu olan {n20} kohort var; "
+            f"herhangi bir yargÄ± iÃ§in en az {MIN_COHORTS_FOR_VERDICT} gerekir."
         )
     else:
         t = a20.get("t_stat_excess_vs_universe", 0)
         p_ = a20.get("avg_percentile_vs_random", 0.5)
         if p_ >= 0.60 and t >= 2 and a20["avg_excess_vs_universe_pct"] > 0:
-            verdict = ("İŞARET VAR (temkinli): seçimler rastgeleyi tutarlı biçimde geçti. "
-                       "Kohortlar üst üste bindiği için gerçek belirsizlik daha büyüktür.")
+            verdict = ("Ä°ÅARET VAR (temkinli): seÃ§imler rastgeleyi tutarlÄ± biÃ§imde geÃ§ti. "
+                       "Kohortlar Ã¼st Ã¼ste bindiÄŸi iÃ§in gerÃ§ek belirsizlik daha bÃ¼yÃ¼ktÃ¼r.")
         else:
-            verdict = "AVANTAJ KANITLANMADI: seçimler rastgele seçimden ayırt edilemiyor."
+            verdict = "AVANTAJ KANITLANMADI: seÃ§imler rastgele seÃ§imden ayÄ±rt edilemiyor."
 
     return {
         "rules_hash": RULES_HASH,
@@ -380,14 +519,14 @@ def evaluate_cohorts(panel, cohorts, horizons=(5, 10, 20), n_random=500, seed=42
         "horizons": by_h,
         "cohorts_waiting_for_horizon": by_h_pending,
         "verdict": verdict,
-        "note": ("avg_percentile_vs_random: 0.50 = rastgele seçimle aynı; "
-                 "0.60+ tutarlı ise işaret; kohortlar üst üste bindiği için "
-                 "t değeri iyimserdir."),
+        "note": ("avg_percentile_vs_random: 0.50 = rastgele seÃ§imle aynÄ±; "
+                 "0.60+ tutarlÄ± ise iÅŸaret; kohortlar Ã¼st Ã¼ste bindiÄŸi iÃ§in "
+                 "t deÄŸeri iyimserdir."),
     }
 
 
 # ----------------------------------------------------------------------
-# İZLEME TABLOSU
+# Ä°ZLEME TABLOSU
 # ----------------------------------------------------------------------
 def monitor_table(panel, p=RULES):
     ind = sv.prepare(panel, p)
@@ -457,7 +596,7 @@ def render_dashboard(panel, evaluation, cohorts):
     parts = [
         "<!doctype html><html lang='tr'><head><meta charset='utf-8'>",
         "<meta name='viewport' content='width=device-width, initial-scale=1'>",
-        "<title>ABD Borsa İzleme</title><style>",
+        "<title>ABD Borsa Ä°zleme</title><style>",
         "body{font-family:system-ui,sans-serif;margin:16px;max-width:1100px}",
         "table{border-collapse:collapse;width:100%;margin:8px 0 20px;font-size:14px}",
         "th,td{border-bottom:1px solid #ccc;padding:5px 8px;text-align:right}",
@@ -468,21 +607,21 @@ def render_dashboard(panel, evaluation, cohorts):
         ".box{background:#222}th,td{border-color:#444}}",
         "</style></head><body>",
         "<h2>ABD Borsa: izleme ve paper takip</h2>",
-        "<p>Bu sayfa araştırma ve takip amaçlıdır, alım tavsiyesi değildir.</p>",
+        "<p>Bu sayfa araÅŸtÄ±rma ve takip amaÃ§lÄ±dÄ±r, alÄ±m tavsiyesi deÄŸildir.</p>",
         f"<div class='box'>Veri tarihi: <b>{e(mon['data_date'])}</b> &nbsp;|&nbsp; ",
         f"SPY {m['spy_close']} / SMA{RULES.market_sma} {m['spy_sma']} &nbsp;|&nbsp; ",
         "Piyasa filtresi: ",
-        ("<span class='ok'>AÇIK (yatırım serbest)</span>" if m["filter_ok"]
+        ("<span class='ok'>AÃ‡IK (yatÄ±rÄ±m serbest)</span>" if m["filter_ok"]
          else "<span class='bad'>KAPALI (nakit)</span>"),
-        f"<br>Kayıtlı kohort: {len(cohorts)} &nbsp;|&nbsp; Kural sürümü: {RULES_HASH}</div>",
+        f"<br>KayÄ±tlÄ± kohort: {len(cohorts)} &nbsp;|&nbsp; Kural sÃ¼rÃ¼mÃ¼: {RULES_HASH}</div>",
         "<h3>Takip sonucu</h3>",
         f"<div class='box'><b>{e(evaluation['verdict'])}</b></div>",
-        "<table><tr><th>Ufuk</th><th>Kohort</th><th>Seçim %</th><th>Evren %</th>"
-        "<th>SPY %</th><th>Fark (evren)</th><th>Rastgele yüzdelik</th></tr>",
+        "<table><tr><th>Ufuk</th><th>Kohort</th><th>SeÃ§im %</th><th>Evren %</th>"
+        "<th>SPY %</th><th>Fark (evren)</th><th>Rastgele yÃ¼zdelik</th></tr>",
     ]
     for hz, a in evaluation["horizons"].items():
         if a.get("cohorts", 0) == 0:
-            parts.append(f"<tr><td>{hz}</td><td>0</td><td colspan='5'>henüz sonuç yok</td></tr>")
+            parts.append(f"<tr><td>{hz}</td><td>0</td><td colspan='5'>henÃ¼z sonuÃ§ yok</td></tr>")
         else:
             parts.append(
                 f"<tr><td>{hz}</td><td>{a['cohorts']}</td>"
@@ -491,12 +630,12 @@ def render_dashboard(panel, evaluation, cohorts):
                 f"<td>{a['avg_percentile_vs_random']}</td></tr>")
     parts.append("</table>")
 
-    parts.append("<h3>Güncel seçimler (dondurulmuş kurallar)</h3>")
+    parts.append("<h3>GÃ¼ncel seÃ§imler (dondurulmuÅŸ kurallar)</h3>")
     if not picks["market_filter_ok"]:
-        parts.append("<p>Piyasa filtresi kapalı: kurallar nakitte kalmayı söylüyor.</p>")
+        parts.append("<p>Piyasa filtresi kapalÄ±: kurallar nakitte kalmayÄ± sÃ¶ylÃ¼yor.</p>")
     else:
-        parts.append("<table><tr><th>Sıra</th><th>Hisse</th><th>Kapanış</th><th>6a getiri %</th>"
-                     "<th>RSI</th><th>ATR %</th><th>İlk stop</th></tr>")
+        parts.append("<table><tr><th>SÄ±ra</th><th>Hisse</th><th>KapanÄ±ÅŸ</th><th>6a getiri %</th>"
+                     "<th>RSI</th><th>ATR %</th><th>Ä°lk stop</th></tr>")
         for p in picks["picks"]:
             parts.append(
                 f"<tr><td>{p['rank']}</td><td>{e(p['symbol'])}</td><td>{p['close']}</td>"
@@ -505,12 +644,12 @@ def render_dashboard(panel, evaluation, cohorts):
         parts.append("</table>")
 
     parts.append("<h3>70 hissenin durumu</h3>")
-    parts.append("<table><tr><th>Hisse</th><th>Durum</th><th>Sıra</th><th>Kapanış</th>"
-                 "<th>Skor %</th><th>RSI</th><th>ATR %</th><th>SMA50 uzaklık %</th>"
+    parts.append("<table><tr><th>Hisse</th><th>Durum</th><th>SÄ±ra</th><th>KapanÄ±ÅŸ</th>"
+                 "<th>Skor %</th><th>RSI</th><th>ATR %</th><th>SMA50 uzaklÄ±k %</th>"
                  "<th>52h zirveden %</th></tr>")
     for r in mon["stocks"]:
         if r.get("stale"):
-            parts.append(f"<tr><td>{e(r['symbol'])}</td><td colspan='8'>veri güncel değil</td></tr>")
+            parts.append(f"<tr><td>{e(r['symbol'])}</td><td colspan='8'>veri gÃ¼ncel deÄŸil</td></tr>")
             continue
         parts.append(
             f"<tr><td>{e(r['symbol'])}</td><td>{r['state']}</td><td>{_fmt(r['rank'])}</td>"
@@ -522,7 +661,7 @@ def render_dashboard(panel, evaluation, cohorts):
 
 
 # ----------------------------------------------------------------------
-# TELEGRAM (kalıcı kayıt)
+# TELEGRAM (kalÄ±cÄ± kayÄ±t)
 # ----------------------------------------------------------------------
 async def send_telegram(text):
     token = os.getenv("TELEGRAM_BOT_TOKEN", "")
@@ -558,12 +697,12 @@ def _telegram_text(cohort, evaluation, status):
 
 
 # ----------------------------------------------------------------------
-# GÜNLÜK İŞ
+# GÃœNLÃœK Ä°Å
 # ----------------------------------------------------------------------
 async def run_daily(get_stock_cache, get_spy_cache, universe, api_key,
                     force=False, notify=True):
     STATE.update(running=True, started_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                 progress="başladı", last_error=None)
+                 progress="baÅŸladÄ±", last_error=None)
     try:
         symbols = list(dict.fromkeys(list(universe or []) + ["SPY"]))
         new_bars, errors = await fetch_recent(
@@ -607,7 +746,7 @@ def make_tracker_router(get_stock_cache, get_spy_cache, universe=None):
     def _panel():
         stocks, spy = get_stock_cache(), get_spy_cache()
         if not stocks or not spy:
-            raise HTTPException(status_code=400, detail="Veri yok: snapshot yüklenmemiş")
+            raise HTTPException(status_code=400, detail="Veri yok: snapshot yÃ¼klenmemiÅŸ")
         try:
             return merged_panel(stocks, spy, universe)
         except ValueError as e:
@@ -626,12 +765,19 @@ def make_tracker_router(get_stock_cache, get_spy_cache, universe=None):
         background.add_task(run_daily, get_stock_cache, get_spy_cache,
                             universe, api_key, force, True)
         return {"status": "started",
-                "note": "Yaklaşık 10 dakika sürer; /v3/track/status ile izleyin."}
+                "note": "YaklaÅŸÄ±k 10 dakika sÃ¼rer; /v3/track/status ile izleyin."}
 
     @router.get("/track/status")
     def track_status():
-        return {**STATE, "rules_hash": RULES_HASH, "track_dir": str(TRACK_DIR),
-                "cohort_file_exists": COHORT_FILE.exists()}
+        return {
+            **STATE,
+            "rules_hash": RULES_HASH,
+            "track_dir": str(TRACK_DIR),
+            "cohort_file_exists": COHORT_FILE.exists(),
+            "persistence": "github" if _github_enabled() else "local",
+            "github_repo": GITHUB_REPO if _github_enabled() else None,
+            "github_cohort_path": GITHUB_COHORT_PATH if _github_enabled() else None,
+        }
 
     @router.get("/track/cohorts")
     def track_cohorts(limit: int = 30):
