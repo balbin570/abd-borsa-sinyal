@@ -154,24 +154,33 @@
       "entry_date": "2026-09-23",
       "entry_price": 341.08,
       "results": {
-        "5d": null,
+        "5d": -3.4244,
         "10d": null,
         "20d": null
       },
       "benchmark_results": {
-        "5d": null,
+        "5d": -1.1116,
         "10d": null,
         "20d": null
       },
       "excess_results": {
-        "5d": null,
+        "5d": -2.3129,
         "10d": null,
         "20d": null
       },
-      "result_status": "ENTRY_RECORDED",
+      "result_status": "COMPLETE_5D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-09-23T01:30:30.661126+00:00",
-      "spy_entry_price": 772.79
+      "spy_entry_price": 772.79,
+      "exit_dates": {
+        "5d": "2026-09-29"
+      },
+      "exit_prices": {
+        "5d": 329.4
+      },
+      "spy_exit_prices": {
+        "5d": 764.2
+      }
     },
     {
       "symbol": "NVDA",
@@ -198,24 +207,33 @@
       "entry_date": "2026-09-23",
       "entry_price": 228.03,
       "results": {
-        "5d": null,
+        "5d": -0.3596,
         "10d": null,
         "20d": null
       },
       "benchmark_results": {
-        "5d": null,
+        "5d": -1.1116,
         "10d": null,
         "20d": null
       },
       "excess_results": {
-        "5d": null,
+        "5d": 0.752,
         "10d": null,
         "20d": null
       },
-      "result_status": "ENTRY_RECORDED",
+      "result_status": "COMPLETE_5D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-09-23T01:30:30.974652+00:00",
-      "spy_entry_price": 772.79
+      "spy_entry_price": 772.79,
+      "exit_dates": {
+        "5d": "2026-09-29"
+      },
+      "exit_prices": {
+        "5d": 227.21
+      },
+      "spy_exit_prices": {
+        "5d": 764.2
+      }
     },
     {
       "symbol": "TSLA",
@@ -242,24 +260,33 @@
       "entry_date": "2026-09-23",
       "entry_price": 380.1,
       "results": {
-        "5d": null,
+        "5d": -7.1718,
         "10d": null,
         "20d": null
       },
       "benchmark_results": {
-        "5d": null,
+        "5d": -1.1116,
         "10d": null,
         "20d": null
       },
       "excess_results": {
-        "5d": null,
+        "5d": -6.0602,
         "10d": null,
         "20d": null
       },
-      "result_status": "ENTRY_RECORDED",
+      "result_status": "COMPLETE_5D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-09-23T01:30:31.296228+00:00",
-      "spy_entry_price": 772.79
+      "spy_entry_price": 772.79,
+      "exit_dates": {
+        "5d": "2026-09-29"
+      },
+      "exit_prices": {
+        "5d": 352.84
+      },
+      "spy_exit_prices": {
+        "5d": 764.2
+      }
     },
     {
       "symbol": "PANW",
@@ -286,24 +313,33 @@
       "entry_date": "2026-09-23",
       "entry_price": 379.8,
       "results": {
-        "5d": null,
+        "5d": 2.267,
         "10d": null,
         "20d": null
       },
       "benchmark_results": {
-        "5d": null,
+        "5d": -1.1116,
         "10d": null,
         "20d": null
       },
       "excess_results": {
-        "5d": null,
+        "5d": 3.3785,
         "10d": null,
         "20d": null
       },
-      "result_status": "ENTRY_RECORDED",
+      "result_status": "COMPLETE_5D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-09-23T01:30:31.608107+00:00",
-      "spy_entry_price": 772.79
+      "spy_entry_price": 772.79,
+      "exit_dates": {
+        "5d": "2026-09-29"
+      },
+      "exit_prices": {
+        "5d": 388.41
+      },
+      "spy_exit_prices": {
+        "5d": 764.2
+      }
     },
     {
       "symbol": "TSLA",
@@ -547,8 +583,8 @@
         "macd_histogram_positive": true
       },
       "entry_definition": "Next US trading day open",
-      "entry_date": null,
-      "entry_price": null,
+      "entry_date": "2026-09-29",
+      "entry_price": 230.995,
       "results": {
         "5d": null,
         "10d": null,
@@ -564,9 +600,10 @@
         "10d": null,
         "20d": null
       },
-      "result_status": "WAITING_FOR_ENTRY",
+      "result_status": "ENTRY_RECORDED",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-09-29T02:41:43.210256+00:00"
+      "telegram_sent_at_utc": "2026-09-29T02:41:43.210256+00:00",
+      "spy_entry_price": 766.83
     },
     {
       "symbol": "QCOM",
@@ -590,8 +627,8 @@
         "macd_histogram_positive": true
       },
       "entry_definition": "Next US trading day open",
-      "entry_date": null,
-      "entry_price": null,
+      "entry_date": "2026-09-29",
+      "entry_price": 189.48,
       "results": {
         "5d": null,
         "10d": null,
@@ -607,9 +644,10 @@
         "10d": null,
         "20d": null
       },
-      "result_status": "WAITING_FOR_ENTRY",
+      "result_status": "ENTRY_RECORDED",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-09-29T02:41:43.683370+00:00"
+      "telegram_sent_at_utc": "2026-09-29T02:41:43.683370+00:00",
+      "spy_entry_price": 766.83
     },
     {
       "symbol": "MU",
@@ -625,6 +663,50 @@
       "momentum20": 12.9837,
       "rsi14": 57.2898,
       "macd_histogram": 8.874823,
+      "conditions": {
+        "price_above_ema20": true,
+        "ema20_above_ema50": true,
+        "momentum_5_to_15": true,
+        "rsi_50_to_70": true,
+        "macd_histogram_positive": true
+      },
+      "entry_definition": "Next US trading day open",
+      "entry_date": "2026-09-29",
+      "entry_price": 1077.6899,
+      "results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "benchmark_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "excess_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "result_status": "ENTRY_RECORDED",
+      "telegram_sent": true,
+      "telegram_sent_at_utc": "2026-09-29T02:41:44.175029+00:00",
+      "spy_entry_price": 766.83
+    },
+    {
+      "symbol": "ZS",
+      "signal_date": "2026-09-29",
+      "model": "C2-TREND-FROZEN",
+      "model_version": "1.0",
+      "official_forward_sample": true,
+      "sample_status": "OFFICIAL_FORWARD",
+      "recorded_at_utc": "2026-09-30T02:04:32.637305+00:00",
+      "signal_close": 198.355,
+      "ema20": 192.5066,
+      "ema50": 178.7873,
+      "momentum20": 5.2924,
+      "rsi14": 68.3925,
+      "macd_histogram": 0.322768,
       "conditions": {
         "price_above_ema20": true,
         "ema20_above_ema50": true,
@@ -652,7 +734,7 @@
       },
       "result_status": "WAITING_FOR_ENTRY",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-09-29T02:41:44.175029+00:00"
+      "telegram_sent_at_utc": "2026-09-30T02:04:33.090758+00:00"
     }
   ],
   "daily_scans": [
@@ -769,10 +851,24 @@
         "QCOM",
         "MU"
       ]
+    },
+    {
+      "evaluated_date": "2026-09-29",
+      "recorded_at_utc": "2026-09-30T02:04:32.639527+00:00",
+      "evaluated_stock_count": 70,
+      "active_full_trend_count": 2,
+      "active_full_trend_symbols": [
+        "MU",
+        "ZS"
+      ],
+      "new_signal_count": 1,
+      "new_signal_symbols": [
+        "ZS"
+      ]
     }
   ],
-  "last_successful_scan_market_date": "2026-09-28",
-  "last_updated_at_utc": "2026-09-29T10:44:27.236392+00:00",
-  "official_forward_signal_count": 13,
+  "last_successful_scan_market_date": "2026-09-29",
+  "last_updated_at_utc": "2026-09-30T02:04:32.639537+00:00",
+  "official_forward_signal_count": 14,
   "bootstrap_signal_count": 1
 }
