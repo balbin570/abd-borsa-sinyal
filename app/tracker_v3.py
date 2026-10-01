@@ -809,7 +809,7 @@ def _telegram_text(cohort, evaluation, status):
 # ----------------------------------------------------------------------
 async def run_daily(get_stock_cache, get_spy_cache, universe, api_key,
                     force=False, notify=True):
-    """Kucuk bir grup isler; ilerlemeyi GitHub'a kaydeder."""
+    """Tek cron cagrisinda tum taramayi 7'li paketlerle tamamlar."""
     STATE.update(
         running=True,
         started_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -831,43 +831,57 @@ async def run_daily(get_stock_cache, get_spy_cache, universe, api_key,
         start_index = int(scan.get("next_index", 0) or 0)
         if start_index < 0 or start_index >= len(symbols):
             start_index = 0
-
-        new_bars, errors, next_index = await fetch_batch(
-            symbols, api_key, start_index=start_index,
-            batch_size=SCAN_BATCH_SIZE,
-            progress=lambda x: STATE.update(progress=x),
-        )
-        if new_bars:
-            _merge_live(new_bars)
-
         all_errors = dict(scan.get("errors") or {})
-        all_errors.update(errors)
-        scan.update(
-            active=True, next_index=next_index, total=len(symbols),
-            errors=all_errors,
-            updated_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        )
 
-        if next_index < len(symbols):
+        while start_index < len(symbols):
+            new_bars, errors, proposed_next = await fetch_batch(
+                symbols, api_key, start_index=start_index,
+                batch_size=SCAN_BATCH_SIZE,
+                progress=lambda x: STATE.update(progress=x),
+            )
+            if new_bars:
+                _merge_live(new_bars)
+
+            if errors:
+                all_errors.update(errors)
+                scan.update(
+                    active=True, next_index=start_index, total=len(symbols),
+                    errors=all_errors,
+                    updated_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                )
+                _write_scan_state(scan)
+                STATE["last_result"] = {
+                    "status": "retrying", "processed": start_index,
+                    "total": len(symbols), "batch_fetched": len(new_bars),
+                    "batch_errors": errors,
+                }
+                await asyncio.sleep(61)
+                continue
+
+            for sym in symbols[start_index:proposed_next]:
+                all_errors.pop(sym, None)
+            start_index = proposed_next
+            scan.update(
+                active=True, next_index=start_index, total=len(symbols),
+                errors=all_errors,
+                updated_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            )
             _write_scan_state(scan)
             STATE["last_result"] = {
-                "status": "partial",
-                "processed": next_index,
-                "total": len(symbols),
-                "next_symbol": symbols[next_index],
-                "batch_fetched": len(new_bars),
-                "batch_errors": errors,
+                "status": "partial" if start_index < len(symbols) else "finishing",
+                "processed": start_index, "total": len(symbols),
+                "next_symbol": symbols[start_index] if start_index < len(symbols) else None,
+                "batch_fetched": len(new_bars), "batch_errors": {},
             }
-            return
+            if start_index < len(symbols):
+                await asyncio.sleep(61)
 
         panel = merged_panel(get_stock_cache(), get_spy_cache(), universe)
         cohort, status = create_cohort_if_due(panel, force=force)
         cohorts = load_cohorts()
         evaluation = evaluate_cohorts(panel, cohorts)
-
         if notify and (cohort or evaluation["usable_cohorts"]):
             await send_telegram(_telegram_text(cohort, evaluation, status))
-
         _clear_scan_state()
         STATE["last_result"] = {
             "status": "complete",
@@ -885,7 +899,6 @@ async def run_daily(get_stock_cache, get_spy_cache, universe, api_key,
             running=False, progress="",
             finished_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         )
-
 
 def make_tracker_router(get_stock_cache, get_spy_cache, universe=None):
     from fastapi import APIRouter, BackgroundTasks, HTTPException
@@ -916,7 +929,7 @@ def make_tracker_router(get_stock_cache, get_spy_cache, universe=None):
                             universe, api_key, force, True)
         return {
             "status": "started",
-            "note": f"Bu cagri en fazla {SCAN_BATCH_SIZE} sembol isler; sonraki cagri kaldigi yerden devam eder."
+            "note": f"Tek cagri tum taramayi tamamlar; {SCAN_BATCH_SIZE} sembolluk paketler arasinda API limiti icin bekler."
         }
 
     @router.get("/track/status")
