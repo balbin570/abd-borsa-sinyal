@@ -9185,6 +9185,40 @@ async def v4_c2_market_filter_study(
             "yearly": yearly,
         }
 
+    # --------------------------------------------------------
+    # V4 momentum threshold sensitivity
+    # Robustness check around the SPY momentum >= 0 candidate.
+    # This does NOT change C2/V3 live rules.
+    # --------------------------------------------------------
+    momentum_thresholds = [-5.0, -2.0, 0.0, 2.0, 5.0]
+    momentum_sensitivity = {}
+
+    for threshold in momentum_thresholds:
+        selected = [
+            x for x in rows
+            if x["spy_momentum20"] >= threshold
+        ]
+
+        overall = summarize(selected)
+        yearly = {}
+        for year in ["2024", "2025", "2026"]:
+            yr = [
+                x for x in selected
+                if x["signal_date"].startswith(year)
+            ]
+            yearly[year] = summarize(yr)
+
+        base_excess = baseline["average_excess_return_20d"] or 0
+        cand_excess = overall["average_excess_return_20d"]
+        key = f"SPY_MOMENTUM_GTE_{threshold:+.0f}"
+        momentum_sensitivity[key] = {
+            "threshold_pct": threshold,
+            "overall": overall,
+            "signal_retention_pct": round(len(selected) / len(rows) * 100, 1) if rows else 0,
+            "delta_average_excess_vs_c2": round(cand_excess - base_excess, 2) if cand_excess is not None else None,
+            "yearly": yearly,
+        }
+
     return {
         "engine": "V4 C2 Market Filter Study",
         "model_status": "RESEARCH_ONLY",
@@ -9207,7 +9241,12 @@ async def v4_c2_market_filter_study(
             "SAFE_COMBO": "Block weak downtrend and block SPY more than 2% below EMA20",
         },
         "results": result,
-        "decision_note": "Do not promote a filter from this endpoint alone. Prefer consistency across 2024/2025/2026, adequate signal retention, and later forward validation."
+        "momentum_sensitivity": {
+            "purpose": "Check whether the SPY momentum filter is robust around the 0% threshold rather than a single-point result",
+            "thresholds_pct": momentum_thresholds,
+            "results": momentum_sensitivity,
+        },
+        "decision_note": "Do not promote a filter from this endpoint alone. Prefer neighboring-threshold consistency across 2024/2025/2026, adequate signal retention, and later forward validation."
     }
 
 from app.strategy_v3 import make_router
