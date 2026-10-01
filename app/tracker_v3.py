@@ -123,6 +123,10 @@ GITHUB_COHORT_PATH = os.getenv(
 GITHUB_LIVE_PATH = os.getenv(
     "GITHUB_LIVE_PATH", "track/live_prices.json.gz"
 ).strip().lstrip("/")
+GITHUB_SCAN_PATH = os.getenv(
+    "GITHUB_SCAN_PATH", "track/scan_state.json"
+).strip().lstrip("/")
+SCAN_BATCH_SIZE = int(os.getenv("SCAN_BATCH_SIZE", "7"))
 
 
 def _github_enabled():
@@ -340,6 +344,43 @@ def _bar_is_incomplete(bar_date: str) -> bool:
     return now.hour * 60 + now.minute < 16 * 60 + 30
 
 
+# ----------------------------------------------------------------------
+# KESINTIYE DAYANIKLI TARAMA DURUMU
+# ----------------------------------------------------------------------
+def _read_scan_state():
+    if not _github_enabled():
+        return {}
+    try:
+        raw, _ = _github_get_bytes(GITHUB_SCAN_PATH)
+        return json.loads(raw.decode("utf-8")) if raw else {}
+    except Exception:
+        return {}
+
+
+def _write_scan_state(state):
+    if not _github_enabled():
+        return False
+    _, sha = _github_get_bytes(GITHUB_SCAN_PATH)
+    raw = json.dumps(state, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    _github_put_bytes(
+        GITHUB_SCAN_PATH, raw,
+        "tracker: update scan state " + datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        sha=sha,
+    )
+    return True
+
+
+def _clear_scan_state():
+    state = {
+        "active": False,
+        "completed_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "next_index": 0,
+        "errors": {},
+    }
+    _write_scan_state(state)
+    return state
+
+
 async def fetch_recent(symbols, api_key, outputsize=200, per_minute=7, progress=None):
     """Twelve Data'dan son barlarÄ± Ã§eker. Ãœcretsiz plan limiti iÃ§in yavaÅŸtÄ±r."""
     out, errors = {}, {}
@@ -375,6 +416,36 @@ async def fetch_recent(symbols, api_key, outputsize=200, per_minute=7, progress=
             if n % per_minute == 0 and n < len(symbols):
                 await asyncio.sleep(61)
     return out, errors
+
+
+async def fetch_batch(symbols, api_key, start_index=0, batch_size=7, progress=None):
+    """En fazla batch_size sembol ceker; uzun bekleme yapmaz."""
+    subset = symbols[start_index:start_index + batch_size]
+    out, errors = {}, {}
+    url = "https://api.twelvedata.com/time_series"
+    async with httpx.AsyncClient(timeout=30) as client:
+        for offset, sym in enumerate(subset, start_index + 1):
+            try:
+                r = await client.get(url, params={
+                    "symbol": sym, "interval": "1day",
+                    "outputsize": 200, "apikey": api_key,
+                })
+                data = r.json()
+                vals = data.get("values")
+                if not vals:
+                    errors[sym] = str(data)[:200]
+                else:
+                    bars = {}
+                    for it in vals:
+                        if _bar_is_incomplete(it["datetime"]):
+                            continue
+                        bars[it["datetime"]] = it
+                    out[sym] = bars
+            except Exception as exc:
+                errors[sym] = f"{type(exc).__name__}: {exc}"[:200]
+            if progress:
+                progress(f"{offset}/{len(symbols)} {sym}")
+    return out, errors, start_index + len(subset)
 
 
 def _merge_live(new_bars):
@@ -738,15 +809,56 @@ def _telegram_text(cohort, evaluation, status):
 # ----------------------------------------------------------------------
 async def run_daily(get_stock_cache, get_spy_cache, universe, api_key,
                     force=False, notify=True):
-    STATE.update(running=True, started_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                 progress="baÅŸladÄ±", last_error=None)
+    """Kucuk bir grup isler; ilerlemeyi GitHub'a kaydeder."""
+    STATE.update(
+        running=True,
+        started_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        progress="basladi", last_error=None,
+    )
     try:
         symbols = list(dict.fromkeys(list(universe or []) + ["SPY"]))
-        new_bars, errors = await fetch_recent(
-            symbols, api_key,
-            progress=lambda s: STATE.update(progress=s))
+        scan = _read_scan_state()
+        if not scan.get("active"):
+            scan = {
+                "active": True,
+                "started_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "next_index": 0,
+                "total": len(symbols),
+                "errors": {},
+            }
+            _write_scan_state(scan)
+
+        start_index = int(scan.get("next_index", 0) or 0)
+        if start_index < 0 or start_index >= len(symbols):
+            start_index = 0
+
+        new_bars, errors, next_index = await fetch_batch(
+            symbols, api_key, start_index=start_index,
+            batch_size=SCAN_BATCH_SIZE,
+            progress=lambda x: STATE.update(progress=x),
+        )
         if new_bars:
             _merge_live(new_bars)
+
+        all_errors = dict(scan.get("errors") or {})
+        all_errors.update(errors)
+        scan.update(
+            active=True, next_index=next_index, total=len(symbols),
+            errors=all_errors,
+            updated_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        )
+
+        if next_index < len(symbols):
+            _write_scan_state(scan)
+            STATE["last_result"] = {
+                "status": "partial",
+                "processed": next_index,
+                "total": len(symbols),
+                "next_symbol": symbols[next_index],
+                "batch_fetched": len(new_bars),
+                "batch_errors": errors,
+            }
+            return
 
         panel = merged_panel(get_stock_cache(), get_spy_cache(), universe)
         cohort, status = create_cohort_if_due(panel, force=force)
@@ -756,10 +868,12 @@ async def run_daily(get_stock_cache, get_spy_cache, universe, api_key,
         if notify and (cohort or evaluation["usable_cohorts"]):
             await send_telegram(_telegram_text(cohort, evaluation, status))
 
+        _clear_scan_state()
         STATE["last_result"] = {
+            "status": "complete",
             "data_date": str(panel["dates"][-1].date()),
-            "symbols_fetched": len(new_bars),
-            "fetch_errors": errors,
+            "symbols_fetched": len(symbols),
+            "fetch_errors": all_errors,
             "cohort": status,
             "cohort_count": len(cohorts),
             "verdict": evaluation["verdict"],
@@ -767,13 +881,12 @@ async def run_daily(get_stock_cache, get_spy_cache, universe, api_key,
     except Exception as exc:
         STATE["last_error"] = f"{type(exc).__name__}: {exc}"
     finally:
-        STATE.update(running=False, progress="",
-                     finished_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+        STATE.update(
+            running=False, progress="",
+            finished_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        )
 
 
-# ----------------------------------------------------------------------
-# FASTAPI ROUTER
-# ----------------------------------------------------------------------
 def make_tracker_router(get_stock_cache, get_spy_cache, universe=None):
     from fastapi import APIRouter, BackgroundTasks, HTTPException
     from fastapi.responses import HTMLResponse
@@ -801,8 +914,10 @@ def make_tracker_router(get_stock_cache, get_spy_cache, universe=None):
             return {"status": "already_running", "progress": STATE["progress"]}
         background.add_task(run_daily, get_stock_cache, get_spy_cache,
                             universe, api_key, force, True)
-        return {"status": "started",
-                "note": "YaklaÅŸÄ±k 10 dakika sÃ¼rer; /v3/track/status ile izleyin."}
+        return {
+            "status": "started",
+            "note": f"Bu cagri en fazla {SCAN_BATCH_SIZE} sembol isler; sonraki cagri kaldigi yerden devam eder."
+        }
 
     @router.get("/track/status")
     def track_status():
@@ -816,6 +931,9 @@ def make_tracker_router(get_stock_cache, get_spy_cache, universe=None):
             "github_repo": GITHUB_REPO if _github_enabled() else None,
             "github_cohort_path": GITHUB_COHORT_PATH if _github_enabled() else None,
             "github_live_path": GITHUB_LIVE_PATH if _github_enabled() else None,
+            "github_scan_path": GITHUB_SCAN_PATH if _github_enabled() else None,
+            "scan_batch_size": SCAN_BATCH_SIZE,
+            "scan_state": _read_scan_state() if _github_enabled() else {},
         }
 
     @router.get("/track/cohorts")
