@@ -9037,6 +9037,179 @@ async def stage8_forward_scan():
             errors
     }
 
+
+# ============================================================
+# V4 RESEARCH - C2 + SPY MARKET FILTER CANDIDATES
+# Research only. Does not change C2/V3 live rules.
+# ============================================================
+
+@app.get("/v4/c2-market-filter-study")
+async def v4_c2_market_filter_study(
+    start_date: str = "2024-01-01",
+    end_date: str = "2026-08-15"
+):
+    spy_values = await get_spy_data()
+    spy_dates = [x["datetime"] for x in spy_values]
+    spy_closes = [float(x["close"]) for x in spy_values]
+    spy_opens = [float(x["open"]) for x in spy_values]
+    spy_index = {d: i for i, d in enumerate(spy_dates)}
+
+    rows = []
+    errors = []
+
+    for symbol in V2_UNIVERSE:
+        try:
+            if symbol not in STOCK_CACHE:
+                await backtest_stock(symbol, threshold=75)
+
+            data = STOCK_CACHE.get(symbol)
+            if not data or "values" not in data:
+                errors.append({"symbol": symbol, "error": "Historical data unavailable"})
+                continue
+
+            values = list(reversed(data["values"]))
+            dates = [x["datetime"] for x in values]
+            closes = [float(x["close"]) for x in values]
+            opens = [float(x["open"]) for x in values]
+
+            for i in range(60, len(closes) - 20, 5):
+                signal_date = dates[i]
+                entry_date = dates[i + 1]
+                exit_date = dates[i + 20]
+
+                if signal_date < start_date or exit_date > end_date:
+                    continue
+                if signal_date not in spy_index or entry_date not in spy_index or exit_date not in spy_index:
+                    continue
+
+                history = closes[:i + 1]
+                price = history[-1]
+                ema20 = calculate_ema(history, 20)
+                ema50 = calculate_ema(history, 50)
+                rsi14 = calculate_rsi(history, 14)
+                _, _, macd_hist = calculate_macd(history)
+                momentum20 = ((price - history[-21]) / history[-21]) * 100
+
+                full_c2 = (
+                    price > ema20
+                    and ema20 > ema50
+                    and 5 <= momentum20 <= 15
+                    and 50 <= rsi14 <= 70
+                    and macd_hist > 0
+                )
+                if not full_c2:
+                    continue
+
+                si = spy_index[signal_date]
+                ei = spy_index[entry_date]
+                xi = spy_index[exit_date]
+                if si < 50:
+                    continue
+
+                spy_hist = spy_closes[:si + 1]
+                spy_price = spy_hist[-1]
+                spy_ema20 = calculate_ema(spy_hist, 20)
+                spy_ema50 = calculate_ema(spy_hist, 50)
+                spy_mom20 = ((spy_price - spy_hist[-21]) / spy_hist[-21]) * 100
+                spy_dist20 = ((spy_price - spy_ema20) / spy_ema20) * 100
+                spy_ema_gap = ((spy_ema20 - spy_ema50) / spy_ema50) * 100
+
+                strong_uptrend = spy_price > spy_ema20 and spy_ema20 > spy_ema50 and spy_mom20 > 0
+                weak_downtrend = spy_price <= spy_ema20 and spy_ema20 <= spy_ema50 and spy_mom20 <= 0
+
+                entry_price = opens[i + 1]
+                ret20 = ((closes[i + 20] - entry_price) / entry_price) * 100
+                spy_entry = spy_opens[ei]
+                spy_ret20 = ((spy_closes[xi] - spy_entry) / spy_entry) * 100
+
+                rows.append({
+                    "symbol": symbol,
+                    "signal_date": signal_date,
+                    "return_20d": ret20,
+                    "excess_return_20d": ret20 - spy_ret20,
+                    "spy_momentum20": spy_mom20,
+                    "spy_distance_ema20": spy_dist20,
+                    "spy_ema20_vs_ema50": spy_ema_gap,
+                    "strong_uptrend": strong_uptrend,
+                    "weak_downtrend": weak_downtrend,
+                })
+        except Exception as exc:
+            errors.append({"symbol": symbol, "error": str(exc)})
+
+    def summarize(items):
+        if not items:
+            return {
+                "count": 0, "average_return_20d": None, "median_return_20d": None,
+                "win_rate_20d": None, "average_excess_return_20d": None,
+                "median_excess_return_20d": None, "beat_spy_rate_20d": None,
+                "trimmed_mean_excess_20d": None
+            }
+        rets = [x["return_20d"] for x in items]
+        excs = [x["excess_return_20d"] for x in items]
+        return {
+            "count": len(items),
+            "average_return_20d": round(sum(rets) / len(rets), 2),
+            "median_return_20d": round(statistics.median(rets), 2),
+            "win_rate_20d": round(sum(x > 0 for x in rets) / len(rets) * 100, 1),
+            "average_excess_return_20d": round(sum(excs) / len(excs), 2),
+            "median_excess_return_20d": round(statistics.median(excs), 2),
+            "beat_spy_rate_20d": round(sum(x > 0 for x in excs) / len(excs) * 100, 1),
+            "trimmed_mean_excess_20d": stage5_trimmed_mean(excs),
+        }
+
+    candidates = {
+        "C2_BASELINE": lambda x: True,
+        "BLOCK_WEAK_DOWNTREND": lambda x: not x["weak_downtrend"],
+        "BLOCK_DEEP_BELOW_EMA20": lambda x: x["spy_distance_ema20"] >= -2,
+        "REQUIRE_SPY_EMA20_ABOVE_EMA50": lambda x: x["spy_ema20_vs_ema50"] >= 0,
+        "REQUIRE_SPY_MOMENTUM_NONNEGATIVE": lambda x: x["spy_momentum20"] >= 0,
+        "SAFE_COMBO": lambda x: (not x["weak_downtrend"]) and x["spy_distance_ema20"] >= -2,
+    }
+
+    baseline = summarize(rows)
+    result = {}
+    for name, rule in candidates.items():
+        selected = [x for x in rows if rule(x)]
+        overall = summarize(selected)
+        yearly = {}
+        for year in ["2024", "2025", "2026"]:
+            yr = [x for x in selected if x["signal_date"].startswith(year)]
+            yearly[year] = summarize(yr)
+
+        base_excess = baseline["average_excess_return_20d"] or 0
+        cand_excess = overall["average_excess_return_20d"]
+        result[name] = {
+            "overall": overall,
+            "signal_retention_pct": round(len(selected) / len(rows) * 100, 1) if rows else 0,
+            "delta_average_excess_vs_c2": round(cand_excess - base_excess, 2) if cand_excess is not None else None,
+            "yearly": yearly,
+        }
+
+    return {
+        "engine": "V4 C2 Market Filter Study",
+        "model_status": "RESEARCH_ONLY",
+        "purpose": "Test a small fixed set of SPY market filters on frozen C2 signals without changing C2/V3 live rules",
+        "start_date": start_date,
+        "end_date": end_date,
+        "sampling": "Every 5 trading days",
+        "entry": "Next trading day open",
+        "benchmark": "SPY same entry and 20d exit",
+        "universe_stock_count": len(V2_UNIVERSE),
+        "c2_signal_count": len(rows),
+        "error_count": len(errors),
+        "errors": errors,
+        "candidate_definitions": {
+            "C2_BASELINE": "Frozen C2; no SPY filter",
+            "BLOCK_WEAK_DOWNTREND": "Exclude only when SPY <= EMA20, EMA20 <= EMA50 and SPY 20d momentum <= 0",
+            "BLOCK_DEEP_BELOW_EMA20": "Exclude when SPY is more than 2% below EMA20",
+            "REQUIRE_SPY_EMA20_ABOVE_EMA50": "Keep only SPY EMA20 >= EMA50",
+            "REQUIRE_SPY_MOMENTUM_NONNEGATIVE": "Keep only SPY 20d momentum >= 0",
+            "SAFE_COMBO": "Block weak downtrend and block SPY more than 2% below EMA20",
+        },
+        "results": result,
+        "decision_note": "Do not promote a filter from this endpoint alone. Prefer consistency across 2024/2025/2026, adequate signal retention, and later forward validation."
+    }
+
 from app.strategy_v3 import make_router
 
 app.include_router(
