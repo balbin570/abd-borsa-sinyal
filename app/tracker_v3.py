@@ -41,6 +41,7 @@ Bu bir alÄ±m tavsiyesi deÄŸildir; araÅŸtÄ±rma ve paper takip aracÄ±dÄ
 
 import asyncio
 import base64
+import gzip
 import hashlib
 import html
 import json
@@ -101,17 +102,26 @@ def _ensure_dir():
 
 
 # ----------------------------------------------------------------------
-# GITHUB KALICI KOHORT KAYDI
+# GITHUB KALICI KAYIT
 # ----------------------------------------------------------------------
 # Render Environment:
-# GITHUB_TOKEN = fine-grained token (Contents: Read and write)
-# GITHUB_REPO  = owner/repo
-# Opsiyonel: GITHUB_BRANCH=main, GITHUB_COHORT_PATH=track/cohorts.jsonl
+#   GITHUB_TOKEN = fine-grained token (Contents: Read and write)
+#   GITHUB_REPO  = owner/repo
+# Opsiyonel:
+#   GITHUB_BRANCH = main
+#   GITHUB_COHORT_PATH = track/cohorts.jsonl
+#   GITHUB_LIVE_PATH = track/live_prices.json.gz
+#
+# Kohortlar JSONL, canlÄ± fiyat geÃ§miÅŸi ise boyutu kÃ¼Ã§Ã¼ltmek iÃ§in gzip olarak
+# GitHub'da tutulur. Token hiÃ§bir endpoint Ã§Ä±ktÄ±sÄ±nda gÃ¶sterilmez.
 GITHUB_REPO = os.getenv("GITHUB_REPO", "").strip()
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
 GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main").strip() or "main"
 GITHUB_COHORT_PATH = os.getenv(
     "GITHUB_COHORT_PATH", "track/cohorts.jsonl"
+).strip().lstrip("/")
+GITHUB_LIVE_PATH = os.getenv(
+    "GITHUB_LIVE_PATH", "track/live_prices.json.gz"
 ).strip().lstrip("/")
 
 
@@ -128,9 +138,47 @@ def _github_headers():
     }
 
 
-def _parse_cohort_text(raw):
+def _github_get_bytes(path):
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}"
+    with httpx.Client(timeout=30) as client:
+        r = client.get(
+            url, headers=_github_headers(),
+            params={"ref": GITHUB_BRANCH},
+        )
+    if r.status_code == 404:
+        return None, None
+    if r.status_code != 200:
+        raise RuntimeError(f"GitHub read failed ({path}): HTTP {r.status_code}")
+    data = r.json()
+    encoded = (data.get("content") or "").replace("\n", "")
+    try:
+        raw = base64.b64decode(encoded) if encoded else b""
+    except Exception as exc:
+        raise RuntimeError(
+            f"GitHub decode failed ({path}): {type(exc).__name__}"
+        ) from exc
+    return raw, data.get("sha")
+
+
+def _github_put_bytes(path, raw, message, sha=None):
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}"
+    payload = {
+        "message": message,
+        "content": base64.b64encode(raw).decode("ascii"),
+        "branch": GITHUB_BRANCH,
+    }
+    if sha:
+        payload["sha"] = sha
+    with httpx.Client(timeout=45) as client:
+        r = client.put(url, headers=_github_headers(), json=payload)
+    if r.status_code not in (200, 201):
+        raise RuntimeError(f"GitHub write failed ({path}): HTTP {r.status_code}")
+    return True
+
+
+def _parse_cohort_text(raw_text):
     out = []
-    for line in (raw or "").splitlines():
+    for line in (raw_text or "").splitlines():
         line = line.strip()
         if not line:
             continue
@@ -140,7 +188,6 @@ def _parse_cohort_text(raw):
                 out.append(item)
         except Exception:
             continue
-    # AynÄ± gÃ¼n iki kayÄ±t varsa sonuncuyu tut.
     by_date = {x["signal_date"]: x for x in out}
     return sorted(by_date.values(), key=lambda x: x["signal_date"])
 
@@ -153,7 +200,6 @@ def _cohorts_to_text(cohorts):
 
 
 def _write_local_cohorts(cohorts):
-    """GitHub kaydÄ±nÄ±n Render Ã¼zerindeki geÃ§ici aynasÄ±."""
     if not _ensure_dir():
         return False
     try:
@@ -164,69 +210,29 @@ def _write_local_cohorts(cohorts):
 
 
 def _github_read_cohorts():
-    url = (
-        f"https://api.github.com/repos/{GITHUB_REPO}/contents/"
-        f"{GITHUB_COHORT_PATH}"
-    )
-    with httpx.Client(timeout=20) as client:
-        r = client.get(
-            url,
-            headers=_github_headers(),
-            params={"ref": GITHUB_BRANCH},
-        )
-
-    if r.status_code == 404:
+    raw, sha = _github_get_bytes(GITHUB_COHORT_PATH)
+    if raw is None:
         return [], None
-    if r.status_code != 200:
-        raise RuntimeError(
-            f"GitHub cohort read failed: HTTP {r.status_code}"
-        )
-
-    data = r.json()
-    encoded = (data.get("content") or "").replace("\n", "")
-    try:
-        raw = base64.b64decode(encoded).decode("utf-8") if encoded else ""
-    except Exception as exc:
-        raise RuntimeError(
-            f"GitHub cohort decode failed: {type(exc).__name__}"
-        ) from exc
-
-    return _parse_cohort_text(raw), data.get("sha")
+    return _parse_cohort_text(raw.decode("utf-8")), sha
 
 
 def _github_write_cohorts(cohorts, sha=None):
-    url = (
-        f"https://api.github.com/repos/{GITHUB_REPO}/contents/"
-        f"{GITHUB_COHORT_PATH}"
-    )
     raw = _cohorts_to_text(cohorts).encode("utf-8")
-    payload = {
-        "message": "tracker: update cohorts "
-                   + datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-        "content": base64.b64encode(raw).decode("ascii"),
-        "branch": GITHUB_BRANCH,
-    }
-    if sha:
-        payload["sha"] = sha
-
-    with httpx.Client(timeout=30) as client:
-        r = client.put(url, headers=_github_headers(), json=payload)
-
-    if r.status_code not in (200, 201):
-        raise RuntimeError(
-            f"GitHub cohort write failed: HTTP {r.status_code}"
-        )
-    return True
+    return _github_put_bytes(
+        GITHUB_COHORT_PATH,
+        raw,
+        "tracker: update cohorts "
+        + datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        sha=sha,
+    )
 
 
 def load_cohorts():
-    # GitHub ayarlÄ±ysa tek kalÄ±cÄ± kaynak GitHub'dÄ±r.
     if _github_enabled():
         cohorts, _ = _github_read_cohorts()
         _write_local_cohorts(cohorts)
         return cohorts
 
-    # GitHub yoksa eski yerel davranÄ±ÅŸ korunur.
     if not COHORT_FILE.exists():
         return []
     try:
@@ -236,7 +242,6 @@ def load_cohorts():
 
 
 def append_cohort(cohort):
-    # GitHub etkinse uzak dosyayÄ± tekrar okuyup aynÄ± tarih kontrolÃ¼ yap.
     if _github_enabled():
         cohorts, sha = _github_read_cohorts()
         if any(
@@ -245,7 +250,6 @@ def append_cohort(cohort):
         ):
             _write_local_cohorts(cohorts)
             return True
-
         cohorts.append(cohort)
         cohorts = sorted(cohorts, key=lambda c: c["signal_date"])
         _github_write_cohorts(cohorts, sha=sha)
@@ -264,6 +268,25 @@ def _load_live():
     if _LIVE_LOADED:
         return
     _LIVE_LOADED = True
+
+    # GitHub etkinse kalÄ±cÄ± canlÄ± fiyat geÃ§miÅŸini Ã¶nce oradan yÃ¼kle.
+    if _github_enabled():
+        try:
+            raw, _ = _github_get_bytes(GITHUB_LIVE_PATH)
+            if raw is not None:
+                LIVE = json.loads(gzip.decompress(raw).decode("utf-8"))
+                _LIVE_VERSION += 1
+                if _ensure_dir():
+                    LIVE_FILE.write_text(
+                        json.dumps(LIVE), encoding="utf-8"
+                    )
+                return
+        except Exception:
+            # GitHub dosyasÄ± henÃ¼z yoksa/okunamazsa gÃ¼nlÃ¼k tarama yine
+            # snapshot + yeni Twelve Data verisiyle baÅŸlayabilsin.
+            LIVE = {}
+
+    # Geriye uyumluluk / geÃ§ici yerel ayna.
     try:
         if LIVE_FILE.exists():
             LIVE = json.loads(LIVE_FILE.read_text(encoding="utf-8"))
@@ -273,14 +296,28 @@ def _load_live():
 
 
 def _save_live():
-    # live_prices.json geÃ§ici olabilir; her taramada Twelve Data'dan yenilenir.
-    # GitHub'a yalnÄ±z uzun dÃ¶nem iÃ§in gerekli kohort geÃ§miÅŸini kaydediyoruz.
-    if not _ensure_dir():
-        return
-    try:
-        LIVE_FILE.write_text(json.dumps(LIVE), encoding="utf-8")
-    except Exception:
-        pass
+    # Ã–nce yerel geÃ§ici aynayÄ± yaz.
+    if _ensure_dir():
+        try:
+            LIVE_FILE.write_text(json.dumps(LIVE), encoding="utf-8")
+        except Exception:
+            pass
+
+    # Sonra sÄ±kÄ±ÅŸtÄ±rÄ±lmÄ±ÅŸ canlÄ± fiyat geÃ§miÅŸini GitHub'a kalÄ±cÄ± yaz.
+    if _github_enabled():
+        raw_json = json.dumps(
+            LIVE, ensure_ascii=False, separators=(",", ":")
+        ).encode("utf-8")
+        compressed = gzip.compress(raw_json, compresslevel=9)
+
+        _, sha = _github_get_bytes(GITHUB_LIVE_PATH)
+        _github_put_bytes(
+            GITHUB_LIVE_PATH,
+            compressed,
+            "tracker: update live prices "
+            + datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            sha=sha,
+        )
 
 
 # ----------------------------------------------------------------------
@@ -774,9 +811,11 @@ def make_tracker_router(get_stock_cache, get_spy_cache, universe=None):
             "rules_hash": RULES_HASH,
             "track_dir": str(TRACK_DIR),
             "cohort_file_exists": COHORT_FILE.exists(),
+            "live_file_exists": LIVE_FILE.exists(),
             "persistence": "github" if _github_enabled() else "local",
             "github_repo": GITHUB_REPO if _github_enabled() else None,
             "github_cohort_path": GITHUB_COHORT_PATH if _github_enabled() else None,
+            "github_live_path": GITHUB_LIVE_PATH if _github_enabled() else None,
         }
 
     @router.get("/track/cohorts")
