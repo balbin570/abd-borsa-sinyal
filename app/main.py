@@ -9249,6 +9249,218 @@ async def v4_c2_market_filter_study(
         "decision_note": "Do not promote a filter from this endpoint alone. Prefer neighboring-threshold consistency across 2024/2025/2026, adequate signal retention, and later forward validation."
     }
 
+
+# ============================================================
+# V4 EXACT C2 HISTORICAL EVENT BACKTEST
+# Frozen C2 false->true transition semantics.
+# Research only; does not change C2/V3 live rules.
+# ============================================================
+
+@app.get("/v4/c2-exact-event-backtest")
+async def v4_c2_exact_event_backtest(
+    start_date: str = "2024-01-01",
+    end_date: str = "2026-08-15"
+):
+    spy_values = await get_spy_data()
+    spy_dates = [x["datetime"] for x in spy_values]
+    spy_closes = [float(x["close"]) for x in spy_values]
+    spy_opens = [float(x["open"]) for x in spy_values]
+    spy_index = {d: i for i, d in enumerate(spy_dates)}
+
+    rows = []
+    errors = []
+
+    def full_c2_at(closes, i):
+        if i < 60:
+            return False
+        history = closes[:i + 1]
+        price = history[-1]
+        ema20 = calculate_ema(history, 20)
+        ema50 = calculate_ema(history, 50)
+        rsi14 = calculate_rsi(history, 14)
+        _, _, macd_hist = calculate_macd(history)
+        momentum20 = ((price - history[-21]) / history[-21]) * 100
+        return (
+            price > ema20
+            and ema20 > ema50
+            and 5 <= momentum20 <= 15
+            and 50 <= rsi14 <= 70
+            and macd_hist > 0
+        )
+
+    for symbol in V2_UNIVERSE:
+        try:
+            if symbol not in STOCK_CACHE:
+                await backtest_stock(symbol, threshold=75)
+
+            data = STOCK_CACHE.get(symbol)
+            if not data or "values" not in data:
+                errors.append({"symbol": symbol, "error": "Historical data unavailable"})
+                continue
+
+            values = list(reversed(data["values"]))
+            dates = [x["datetime"] for x in values]
+            closes = [float(x["close"]) for x in values]
+            opens = [float(x["open"]) for x in values]
+
+            previous_full = False
+
+            for i in range(60, len(closes) - 20):
+                current_full = full_c2_at(closes, i)
+                new_signal = current_full and not previous_full
+                previous_full = current_full
+
+                if not new_signal:
+                    continue
+
+                signal_date = dates[i]
+                entry_date = dates[i + 1]
+                exit5_date = dates[i + 5]
+                exit10_date = dates[i + 10]
+                exit20_date = dates[i + 20]
+
+                if signal_date < start_date or exit20_date > end_date:
+                    continue
+
+                needed = [signal_date, entry_date, exit20_date]
+                if any(d not in spy_index for d in needed):
+                    continue
+
+                si = spy_index[signal_date]
+                ei = spy_index[entry_date]
+                xi = spy_index[exit20_date]
+                if si < 50:
+                    continue
+
+                spy_hist = spy_closes[:si + 1]
+                spy_price = spy_hist[-1]
+                spy_momentum20 = ((spy_price - spy_hist[-21]) / spy_hist[-21]) * 100
+
+                entry_price = opens[i + 1]
+                ret5 = ((closes[i + 5] - entry_price) / entry_price) * 100
+                ret10 = ((closes[i + 10] - entry_price) / entry_price) * 100
+                ret20 = ((closes[i + 20] - entry_price) / entry_price) * 100
+
+                spy_entry = spy_opens[ei]
+                spy_ret20 = ((spy_closes[xi] - spy_entry) / spy_entry) * 100
+
+                rows.append({
+                    "symbol": symbol,
+                    "signal_date": signal_date,
+                    "entry_date": entry_date,
+                    "exit_5d_date": exit5_date,
+                    "exit_10d_date": exit10_date,
+                    "exit_20d_date": exit20_date,
+                    "return_5d": ret5,
+                    "return_10d": ret10,
+                    "return_20d": ret20,
+                    "spy_return_20d": spy_ret20,
+                    "excess_return_20d": ret20 - spy_ret20,
+                    "spy_momentum20": spy_momentum20,
+                })
+
+        except Exception as exc:
+            errors.append({"symbol": symbol, "error": str(exc)})
+
+    def summarize(items):
+        if not items:
+            return {
+                "count": 0,
+                "average_return_5d": None,
+                "average_return_10d": None,
+                "average_return_20d": None,
+                "median_return_20d": None,
+                "win_rate_20d": None,
+                "average_excess_return_20d": None,
+                "median_excess_return_20d": None,
+                "beat_spy_rate_20d": None,
+                "trimmed_mean_excess_20d": None,
+            }
+
+        r5 = [x["return_5d"] for x in items]
+        r10 = [x["return_10d"] for x in items]
+        r20 = [x["return_20d"] for x in items]
+        exc = [x["excess_return_20d"] for x in items]
+
+        return {
+            "count": len(items),
+            "average_return_5d": round(sum(r5) / len(r5), 2),
+            "average_return_10d": round(sum(r10) / len(r10), 2),
+            "average_return_20d": round(sum(r20) / len(r20), 2),
+            "median_return_20d": round(statistics.median(r20), 2),
+            "win_rate_20d": round(sum(x > 0 for x in r20) / len(r20) * 100, 1),
+            "average_excess_return_20d": round(sum(exc) / len(exc), 2),
+            "median_excess_return_20d": round(statistics.median(exc), 2),
+            "beat_spy_rate_20d": round(sum(x > 0 for x in exc) / len(exc) * 100, 1),
+            "trimmed_mean_excess_20d": stage5_trimmed_mean(exc),
+        }
+
+    candidates = {
+        "C2_BASELINE": lambda x: True,
+        "SPY_MOMENTUM_GTE_-2": lambda x: x["spy_momentum20"] >= -2.0,
+        "SPY_MOMENTUM_GTE_0": lambda x: x["spy_momentum20"] >= 0.0,
+    }
+
+    baseline = summarize(rows)
+    results = {}
+
+    for name, rule in candidates.items():
+        selected = [x for x in rows if rule(x)]
+        overall = summarize(selected)
+        yearly = {}
+        for year in ["2024", "2025", "2026"]:
+            yearly[year] = summarize(
+                [x for x in selected if x["signal_date"].startswith(year)]
+            )
+
+        base_excess = baseline["average_excess_return_20d"]
+        cand_excess = overall["average_excess_return_20d"]
+
+        results[name] = {
+            "overall": overall,
+            "signal_retention_pct": (
+                round(len(selected) / len(rows) * 100, 1) if rows else 0
+            ),
+            "delta_average_excess_vs_c2": (
+                round(cand_excess - base_excess, 2)
+                if cand_excess is not None and base_excess is not None
+                else None
+            ),
+            "yearly": yearly,
+        }
+
+    return {
+        "engine": "V4 Exact C2 Historical Event Backtest",
+        "model_status": "RESEARCH_ONLY",
+        "purpose": (
+            "Backtest frozen C2 with exact false-to-true event semantics, "
+            "then compare only SPY momentum >= -2% and >= 0% filters"
+        ),
+        "start_date": start_date,
+        "end_date": end_date,
+        "signal_semantics": (
+            "One signal only when C2 changes from FALSE to TRUE; "
+            "no repeat signal while FULL remains TRUE"
+        ),
+        "entry": "Next trading day open",
+        "targets": "5d / 10d / 20d closes",
+        "benchmark": "SPY same next-day-open entry and 20d exit",
+        "universe_stock_count": len(V2_UNIVERSE),
+        "exact_c2_signal_count": len(rows),
+        "error_count": len(errors),
+        "errors": errors,
+        "candidate_definitions": {
+            "C2_BASELINE": "Frozen C2; no SPY filter",
+            "SPY_MOMENTUM_GTE_-2": "Keep exact C2 events when SPY 20d momentum >= -2%",
+            "SPY_MOMENTUM_GTE_0": "Keep exact C2 events when SPY 20d momentum >= 0%",
+        },
+        "results": results,
+        "decision_note": (
+            "Research only. Do not change frozen C2/V3 from this historical test alone; "
+            "compare yearly consistency, signal retention, and forward validation."
+        ),
+    }
+
 from app.strategy_v3 import make_router
 
 app.include_router(
