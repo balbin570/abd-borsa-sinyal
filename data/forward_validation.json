@@ -51,29 +51,32 @@
       "entry_price": 170.19,
       "results": {
         "5d": 1.9214,
-        "10d": null,
+        "10d": 6.1637,
         "20d": null
       },
       "benchmark_results": {
         "5d": 0.6656,
-        "10d": null,
+        "10d": 0.3067,
         "20d": null
       },
       "excess_results": {
         "5d": 1.2558,
-        "10d": null,
+        "10d": 5.857,
         "20d": null
       },
-      "result_status": "COMPLETE_5D",
+      "result_status": "COMPLETE_10D",
       "spy_entry_price": 766.25,
       "exit_dates": {
-        "5d": "2026-09-25"
+        "5d": "2026-09-25",
+        "10d": "2026-10-02"
       },
       "exit_prices": {
-        "5d": 173.46
+        "5d": 173.46,
+        "10d": 180.68
       },
       "spy_exit_prices": {
-        "5d": 771.35
+        "5d": 771.35,
+        "10d": 768.6
       }
     },
     {
@@ -578,24 +581,33 @@
       "entry_date": "2026-09-28",
       "entry_price": 192.02,
       "results": {
-        "5d": null,
+        "5d": 11.2228,
         "10d": null,
         "20d": null
       },
       "benchmark_results": {
-        "5d": null,
+        "5d": 0.0325,
         "10d": null,
         "20d": null
       },
       "excess_results": {
-        "5d": null,
+        "5d": 11.1902,
         "10d": null,
         "20d": null
       },
-      "result_status": "ENTRY_RECORDED",
+      "result_status": "COMPLETE_5D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-09-26T01:29:37.916752+00:00",
-      "spy_entry_price": 768.35
+      "spy_entry_price": 768.35,
+      "exit_dates": {
+        "5d": "2026-10-02"
+      },
+      "exit_prices": {
+        "5d": 213.57
+      },
+      "spy_exit_prices": {
+        "5d": 768.6
+      }
     },
     {
       "symbol": "NVDA",
@@ -1018,10 +1030,33 @@
       ],
       "new_signal_count": 0,
       "new_signal_symbols": []
+    },
+    {
+      "evaluated_date": "2026-10-02",
+      "recorded_at_utc": "2026-10-02T17:30:22.766769+00:00",
+      "evaluated_stock_count": 70,
+      "active_full_trend_count": 0,
+      "active_full_trend_symbols": [],
+      "new_signal_count": 0,
+      "new_signal_symbols": [],
+      "v4_shadow": {
+        "candidate": "C2 + SPY momentum20 >= 0",
+        "spy_momentum20": -0.5911,
+        "filter_pass": false,
+        "status": "RESEARCH_ONLY"
+      }
     }
   ],
-  "last_successful_scan_market_date": "2026-10-01",
-  "last_updated_at_utc": "2026-10-02T02:14:28.393835+00:00",
+  "last_successful_scan_market_date": "2026-10-02",
+  "last_updated_at_utc": "2026-10-02T17:30:22.766784+00:00",
   "official_forward_signal_count": 16,
-  "bootstrap_signal_count": 1
+  "bootstrap_signal_count": 1,
+  "v4_shadow": {
+    "candidate": "C2 + SPY momentum20 >= 0",
+    "status": "RESEARCH_ONLY",
+    "official_c2_signal_count": 16,
+    "official_v4_shadow_signal_count": 0,
+    "last_scan_spy_momentum20": -0.5911,
+    "last_scan_filter_pass": false
+  }
 }
