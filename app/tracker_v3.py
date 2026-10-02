@@ -370,10 +370,11 @@ def _write_scan_state(state):
     return True
 
 
-def _clear_scan_state():
+def _clear_scan_state(data_date=None):
     state = {
         "active": False,
         "completed_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "completed_data_date": data_date,
         "next_index": 0,
         "errors": {},
     }
@@ -882,10 +883,11 @@ async def run_daily(get_stock_cache, get_spy_cache, universe, api_key,
         evaluation = evaluate_cohorts(panel, cohorts)
         if notify and (cohort or evaluation["usable_cohorts"]):
             await send_telegram(_telegram_text(cohort, evaluation, status))
-        _clear_scan_state()
+        completed_data_date = str(panel["dates"][-1].date())
+        _clear_scan_state(completed_data_date)
         STATE["last_result"] = {
             "status": "complete",
-            "data_date": str(panel["dates"][-1].date()),
+            "data_date": completed_data_date,
             "symbols_fetched": len(symbols),
             "fetch_errors": all_errors,
             "cohort": status,
@@ -925,6 +927,27 @@ def make_tracker_router(get_stock_cache, get_spy_cache, universe=None):
             raise HTTPException(status_code=500, detail="Twelve Data API key missing")
         if STATE["running"]:
             return {"status": "already_running", "progress": STATE["progress"]}
+
+        # Yedek cron korumasi: ayni ABD islem gunu tamamlandiysa tekrar tarama yapma.
+        if not force and _github_enabled():
+            scan = _read_scan_state()
+            completed_data_date = scan.get("completed_data_date")
+            if completed_data_date:
+                now_et = _now_et()
+                expected = now_et.date()
+                if expected.weekday() == 5:
+                    expected -= timedelta(days=1)
+                elif expected.weekday() == 6:
+                    expected -= timedelta(days=2)
+                expected_data_date = expected.isoformat()
+                if completed_data_date == expected_data_date:
+                    return {
+                        "status": "already_complete",
+                        "data_date": completed_data_date,
+                        "completed_utc": scan.get("completed_utc"),
+                        "note": "Bu ABD islem gunu zaten basariyla tarandi; tekrar tarama yapilmadi."
+                    }
+
         background.add_task(run_daily, get_stock_cache, get_spy_cache,
                             universe, api_key, force, True)
         return {
