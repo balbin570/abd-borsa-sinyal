@@ -1036,6 +1036,23 @@ def main():
             f"{exc}"
         )
     
+    # ========================================================
+    # V4 SHADOW FILTER - RESEARCH ONLY
+    # Candidate: C2 + SPY 20-day momentum >= 0
+    # C2 signal rules remain unchanged.
+    # ========================================================
+
+    spy_closes = [float(row["close"]) for row in spy_values]
+    if len(spy_closes) < 21:
+        raise RuntimeError("Not enough SPY data for V4 shadow momentum")
+
+    spy_momentum20 = (
+        (spy_closes[-1] - spy_closes[-21])
+        / spy_closes[-21]
+    ) * 100
+
+    v4_shadow_filter_pass = (spy_momentum20 >= 0)
+
     # --------------------------------------------------------
     # Latest common market date.
     # --------------------------------------------------------
@@ -1196,6 +1213,14 @@ def main():
                     "PRE_FREEZE_BOOTSTRAP"
                 ),
 
+            "v4_shadow": {
+                "candidate": "C2 + SPY momentum20 >= 0",
+                "spy_momentum20": round(spy_momentum20, 4),
+                "filter_pass": v4_shadow_filter_pass,
+                "included_in_v4_shadow": bool(v4_shadow_filter_pass),
+                "status": "RESEARCH_ONLY"
+            },
+
             "recorded_at_utc":
                 datetime.now(
                     timezone.utc
@@ -1346,7 +1371,14 @@ def main():
                 ),
 
             "new_signal_symbols":
-                new_signals
+                new_signals,
+
+            "v4_shadow": {
+                "candidate": "C2 + SPY momentum20 >= 0",
+                "spy_momentum20": round(spy_momentum20, 4),
+                "filter_pass": v4_shadow_filter_pass,
+                "status": "RESEARCH_ONLY"
+            }
         })
 
     forward[
@@ -1387,6 +1419,25 @@ def main():
             False
         )
     )
+
+    # ========================================================
+    # V4 SHADOW SUMMARY - does not alter official C2 counts
+    # ========================================================
+
+    forward["v4_shadow"] = {
+        "candidate": "C2 + SPY momentum20 >= 0",
+        "status": "RESEARCH_ONLY",
+        "official_c2_signal_count": forward["official_forward_signal_count"],
+        "official_v4_shadow_signal_count": sum(
+            1
+            for row in forward.get("signals", [])
+            if row.get("official_forward_sample")
+            and row.get("v4_shadow", {}).get("included_in_v4_shadow")
+        ),
+        "last_scan_spy_momentum20": round(spy_momentum20, 4),
+        "last_scan_filter_pass": v4_shadow_filter_pass
+    }
+
 
     # ========================================================
     # SEND ONLY NEW OFFICIAL FORWARD SIGNALS TO TELEGRAM
