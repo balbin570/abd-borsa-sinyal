@@ -752,7 +752,7 @@
       },
       "entry_definition": "Next US trading day open",
       "entry_date": "2026-09-30",
-      "entry_price": 199.0,
+      "entry_price": 198.86,
       "results": {
         "5d": null,
         "10d": null,
@@ -795,8 +795,8 @@
         "macd_histogram_positive": true
       },
       "entry_definition": "Next US trading day open",
-      "entry_date": null,
-      "entry_price": null,
+      "entry_date": "2026-10-01",
+      "entry_price": 229.98,
       "results": {
         "5d": null,
         "10d": null,
@@ -812,9 +812,10 @@
         "10d": null,
         "20d": null
       },
-      "result_status": "WAITING_FOR_ENTRY",
+      "result_status": "ENTRY_RECORDED",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-10-01T02:04:42.378018+00:00"
+      "telegram_sent_at_utc": "2026-10-01T02:04:42.378018+00:00",
+      "spy_entry_price": 764.36
     },
     {
       "symbol": "ADI",
@@ -838,8 +839,8 @@
         "macd_histogram_positive": true
       },
       "entry_definition": "Next US trading day open",
-      "entry_date": null,
-      "entry_price": null,
+      "entry_date": "2026-10-01",
+      "entry_price": 396.94,
       "results": {
         "5d": null,
         "10d": null,
@@ -855,9 +856,10 @@
         "10d": null,
         "20d": null
       },
-      "result_status": "WAITING_FOR_ENTRY",
+      "result_status": "ENTRY_RECORDED",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-10-01T02:04:42.871208+00:00"
+      "telegram_sent_at_utc": "2026-10-01T02:04:42.871208+00:00",
+      "spy_entry_price": 764.36
     }
   ],
   "daily_scans": [
@@ -1004,10 +1006,22 @@
         "NVDA",
         "ADI"
       ]
+    },
+    {
+      "evaluated_date": "2026-10-01",
+      "recorded_at_utc": "2026-10-02T02:14:28.393820+00:00",
+      "evaluated_stock_count": 70,
+      "active_full_trend_count": 2,
+      "active_full_trend_symbols": [
+        "MU",
+        "ADI"
+      ],
+      "new_signal_count": 0,
+      "new_signal_symbols": []
     }
   ],
-  "last_successful_scan_market_date": "2026-09-30",
-  "last_updated_at_utc": "2026-10-01T02:04:41.862990+00:00",
+  "last_successful_scan_market_date": "2026-10-01",
+  "last_updated_at_utc": "2026-10-02T02:14:28.393835+00:00",
   "official_forward_signal_count": 16,
   "bootstrap_signal_count": 1
 }
