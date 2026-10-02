@@ -935,10 +935,16 @@ def make_tracker_router(get_stock_cache, get_spy_cache, universe=None):
             if completed_data_date:
                 now_et = _now_et()
                 expected = now_et.date()
-                if expected.weekday() == 5:
+
+                # Son tamamlanmis ABD islem gununu bul.
+                # Hafta ici 16:30 ET'den once bugunun gunluk bari tamamlanmis sayilmaz.
+                if expected.weekday() < 5 and (now_et.hour * 60 + now_et.minute) < (16 * 60 + 30):
                     expected -= timedelta(days=1)
-                elif expected.weekday() == 6:
-                    expected -= timedelta(days=2)
+
+                # Cumartesi/Pazar veya cuma oncesine dusen tarihi son islem gunune cek.
+                while expected.weekday() >= 5:
+                    expected -= timedelta(days=1)
+
                 expected_data_date = expected.isoformat()
                 if completed_data_date == expected_data_date:
                     return {
