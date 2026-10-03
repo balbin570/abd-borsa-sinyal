@@ -51,17 +51,17 @@
       "entry_price": 170.19,
       "results": {
         "5d": 1.9214,
-        "10d": 6.1637,
+        "10d": 6.3223,
         "20d": null
       },
       "benchmark_results": {
         "5d": 0.6656,
-        "10d": 0.3067,
+        "10d": 0.4424,
         "20d": null
       },
       "excess_results": {
         "5d": 1.2558,
-        "10d": 5.857,
+        "10d": 5.8799,
         "20d": null
       },
       "result_status": "COMPLETE_10D",
@@ -72,11 +72,11 @@
       },
       "exit_prices": {
         "5d": 173.46,
-        "10d": 180.68
+        "10d": 180.95
       },
       "spy_exit_prices": {
         "5d": 771.35,
-        "10d": 768.6
+        "10d": 769.64
       }
     },
     {
@@ -581,17 +581,17 @@
       "entry_date": "2026-09-28",
       "entry_price": 192.02,
       "results": {
-        "5d": 11.2228,
+        "5d": 10.1396,
         "10d": null,
         "20d": null
       },
       "benchmark_results": {
-        "5d": 0.0325,
+        "5d": 0.1679,
         "10d": null,
         "20d": null
       },
       "excess_results": {
-        "5d": 11.1902,
+        "5d": 9.9717,
         "10d": null,
         "20d": null
       },
@@ -603,10 +603,10 @@
         "5d": "2026-10-02"
       },
       "exit_prices": {
-        "5d": 213.57
+        "5d": 211.49
       },
       "spy_exit_prices": {
-        "5d": 768.6
+        "5d": 769.64
       }
     },
     {
@@ -1048,7 +1048,7 @@
     }
   ],
   "last_successful_scan_market_date": "2026-10-02",
-  "last_updated_at_utc": "2026-10-02T17:30:22.766784+00:00",
+  "last_updated_at_utc": "2026-10-03T01:58:27.992569+00:00",
   "official_forward_signal_count": 16,
   "bootstrap_signal_count": 1,
   "v4_shadow": {
@@ -1056,7 +1056,7 @@
     "status": "RESEARCH_ONLY",
     "official_c2_signal_count": 16,
     "official_v4_shadow_signal_count": 0,
-    "last_scan_spy_momentum20": -0.5911,
+    "last_scan_spy_momentum20": -0.4566,
     "last_scan_filter_pass": false
   }
 }
