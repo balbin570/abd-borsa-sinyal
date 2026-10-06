@@ -1274,6 +1274,203 @@ async def send_strong_signals():
         "symbols": [item["symbol"] for item in results]
     }
 
+
+HISTORICAL_WEEKLY_STATE = {
+    "running": False,
+    "requested_date": None,
+    "last_result": None,
+    "last_error": None,
+}
+
+
+async def _analyze_stock_historical(symbol: str, target_date: str):
+    """Run the existing weekly scoring rules using data available through target_date."""
+    if not TWELVE_DATA_API_KEY:
+        raise RuntimeError("Twelve Data API key missing")
+
+    target = datetime.strptime(target_date, "%Y-%m-%d").date()
+    # Twelve Data end_date acts as an upper boundary; use the following day
+    # so the requested market day's completed daily bar is included.
+    api_end_date = (target + timedelta(days=1)).isoformat()
+
+    url = "https://api.twelvedata.com/time_series"
+    params = {
+        "symbol": symbol.upper(),
+        "interval": "1day",
+        "outputsize": 100,
+        "end_date": api_end_date,
+        "apikey": TWELVE_DATA_API_KEY,
+    }
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        response = await client.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+
+    if "values" not in data:
+        raise RuntimeError(str(data))
+
+    values = sorted(data["values"], key=lambda x: x["datetime"])
+    values = [row for row in values if row["datetime"][:10] <= target_date]
+    if len(values) < 51:
+        raise RuntimeError("Yeterli fiyat verisi bulunamadi")
+
+    used_date = values[-1]["datetime"][:10]
+    if used_date != target_date:
+        raise RuntimeError(f"Hedef tarih barı bulunamadı; son bar {used_date}")
+
+    closes = [float(item["close"]) for item in values]
+    volumes = [float(item["volume"]) for item in values]
+    price = closes[-1]
+
+    ema20 = calculate_ema(closes, 20)
+    ema50 = calculate_ema(closes, 50)
+    rsi14 = calculate_rsi(closes, 14)
+    macd, macd_signal, macd_histogram = calculate_macd(closes)
+
+    price_20_days_ago = closes[-21]
+    momentum20 = ((price - price_20_days_ago) / price_20_days_ago) * 100
+
+    current_volume = volumes[-1]
+    previous_20_volumes = volumes[-21:-1]
+    avg_volume20 = sum(previous_20_volumes) / 20
+    volume_ratio = current_volume / avg_volume20 if avg_volume20 > 0 else 0
+
+    score = 0
+    reasons = []
+    if price > ema20:
+        score += 15
+        reasons.append("Fiyat EMA20 üzerinde")
+    if ema20 > ema50:
+        score += 20
+        reasons.append("EMA20 EMA50 üzerinde")
+    if 55 <= rsi14 <= 70:
+        score += 15
+        reasons.append("RSI güçlü bölgede")
+    elif 50 <= rsi14 < 55:
+        score += 8
+        reasons.append("RSI pozitif bölgede")
+    elif 70 < rsi14 <= 75:
+        score += 8
+        reasons.append("RSI güçlü ancak yüksek")
+    if volume_ratio >= 1.20:
+        score += 15
+        reasons.append("Hacim güçlü")
+    elif volume_ratio >= 1.00:
+        score += 8
+        reasons.append("Hacim ortalama üzerinde")
+    if macd > macd_signal and macd_histogram > 0:
+        score += 20
+        reasons.append("MACD sinyal çizgisinin üzerinde")
+    elif macd > macd_signal:
+        score += 10
+        reasons.append("MACD pozitif kesişim bölgesinde")
+    if momentum20 >= 5:
+        score += 15
+        reasons.append("20 günlük momentum güçlü")
+    elif momentum20 > 0:
+        score += 8
+        reasons.append("20 günlük momentum pozitif")
+
+    ema20_distance = ((price - ema20) / ema20) * 100
+    if rsi14 > 75 or ema20_distance > 12:
+        risk = "YUKSEK"
+    elif rsi14 > 70 or ema20_distance > 8:
+        risk = "ORTA"
+    else:
+        risk = "DUSUK"
+
+    signal = "GUCLU" if score >= 75 else ("ORTA" if score >= 50 else "ZAYIF")
+    return {
+        "symbol": symbol.upper(),
+        "data_date": used_date,
+        "price": round(price, 2),
+        "ema20": round(ema20, 2),
+        "ema50": round(ema50, 2),
+        "rsi14": round(rsi14, 2),
+        "macd": round(macd, 2),
+        "macd_signal": round(macd_signal, 2),
+        "macd_histogram": round(macd_histogram, 2),
+        "momentum20": round(momentum20, 2),
+        "volume_ratio": round(volume_ratio, 2),
+        "score": score,
+        "signal": signal,
+        "risk": risk,
+        "reasons": reasons,
+    }
+
+
+async def _run_historical_weekly_scan(target_date: str):
+    HISTORICAL_WEEKLY_STATE["running"] = True
+    HISTORICAL_WEEKLY_STATE["requested_date"] = target_date
+    HISTORICAL_WEEKLY_STATE["last_error"] = None
+    HISTORICAL_WEEKLY_STATE["last_result"] = None
+    try:
+        candidates = []
+        errors = []
+        batch_size = 7
+        for group_start in range(0, len(V2_UNIVERSE), batch_size):
+            group = V2_UNIVERSE[group_start:group_start + batch_size]
+            for symbol in group:
+                try:
+                    analysis = await _analyze_stock_historical(symbol, target_date)
+                    if analysis["score"] >= 75:
+                        candidates.append(analysis)
+                except Exception as exc:
+                    errors.append({"symbol": symbol, "error": str(exc)})
+            if group_start + batch_size < len(V2_UNIVERSE):
+                await asyncio.sleep(61)
+
+        candidates.sort(
+            key=lambda x: (x["score"], x["momentum20"], x["macd_histogram"]),
+            reverse=True,
+        )
+        picks = candidates[:5]
+        HISTORICAL_WEEKLY_STATE["last_result"] = {
+            "status": "complete",
+            "mode": "weekly_historical",
+            "requested_date": target_date,
+            "universe_count": len(V2_UNIVERSE),
+            "strong_candidate_count": len(candidates),
+            "top5": picks,
+            "error_count": len(errors),
+            "errors": errors,
+            "note": "Telegram'a gonderilmedi; sadece gecmis tarih arastirma sonucu.",
+        }
+    except Exception as exc:
+        HISTORICAL_WEEKLY_STATE["last_error"] = str(exc)
+    finally:
+        HISTORICAL_WEEKLY_STATE["running"] = False
+
+
+@app.get("/weekly-backtest")
+async def weekly_backtest(date: str, background_tasks: BackgroundTasks):
+    """One-off historical weekly scan. Does not send Telegram messages."""
+    try:
+        datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="date YYYY-MM-DD olmali")
+
+    if HISTORICAL_WEEKLY_STATE["running"]:
+        return {
+            "status": "already_running",
+            "requested_date": HISTORICAL_WEEKLY_STATE["requested_date"],
+        }
+
+    background_tasks.add_task(_run_historical_weekly_scan, date)
+    return {
+        "status": "started",
+        "mode": "weekly_historical",
+        "requested_date": date,
+        "note": "Tarama arka planda devam ediyor. Sonucu /weekly-backtest/status adresinden kontrol edin.",
+    }
+
+
+@app.get("/weekly-backtest/status")
+async def weekly_backtest_status():
+    return HISTORICAL_WEEKLY_STATE
+
+
 WEEKLY_STATE = {
     "running": False,
     "last_result": None,
