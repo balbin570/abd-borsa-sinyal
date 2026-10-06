@@ -1398,6 +1398,13 @@ async def _weekly_current_and_previous(symbol: str):
     return current, previous
 
 
+WEEKLY_STATE = {
+    "running": False,
+    "last_result": None,
+    "last_error": None,
+}
+
+
 async def _run_weekly_scan():
     WEEKLY_STATE["running"] = True
     WEEKLY_STATE["last_error"] = None
