@@ -1274,6 +1274,100 @@ async def send_strong_signals():
         "symbols": [item["symbol"] for item in results]
     }
 
+@app.get("/send-weekly")
+async def send_weekly_signals():
+    """
+    Haftalik Telegram listesi.
+    Cron tarafinda Cumartesi gunu bir kez cagrilmak uzere tasarlanmistir.
+    C2 / V3 / V4 kurallarini degistirmez.
+    70 hisselik V2_UNIVERSE evrenini tarar, skoru >= 75 olanlar arasindan
+    en yuksek puanli ilk 5 hisseyi gonderir.
+    """
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        raise HTTPException(
+            status_code=500,
+            detail="Telegram settings missing"
+        )
+
+    candidates = []
+    errors = []
+    batch_size = 7
+
+    for group_start in range(0, len(V2_UNIVERSE), batch_size):
+        group = V2_UNIVERSE[group_start:group_start + batch_size]
+
+        for symbol in group:
+            try:
+                analysis = await analyze_stock(symbol)
+                if analysis["score"] >= 75:
+                    candidates.append(analysis)
+            except Exception as exc:
+                errors.append({"symbol": symbol, "error": str(exc)})
+
+        if group_start + batch_size < len(V2_UNIVERSE):
+            await asyncio.sleep(61)
+
+    candidates = sorted(
+        candidates,
+        key=lambda x: (
+            x["score"],
+            x["momentum20"],
+            x["macd_histogram"]
+        ),
+        reverse=True
+    )
+
+    picks = candidates[:5]
+
+    if picks:
+        message = "📊 HAFTALIK ABD HISSE LISTESI\n"
+        message += "Gelecek hafta icin teknik olarak en guclu adaylar\n\n"
+
+        for rank, item in enumerate(picks, start=1):
+            message += (
+                f"{rank}. {item['symbol']}\n"
+                f"Puan: {item['score']}/100\n"
+                f"Fiyat: ${item['price']}\n"
+                f"RSI: {item['rsi14']}\n"
+                f"Momentum 20G: %{item['momentum20']}\n"
+                f"Hacim Orani: {item['volume_ratio']}x\n"
+                f"MACD Histogram: {item['macd_histogram']}\n"
+                f"Risk: {item['risk']}\n\n"
+            )
+    else:
+        message = (
+            "📊 HAFTALIK ABD HISSE LISTESI\n\n"
+            "Bu hafta 75+ puan alan guclu aday bulunamadi.\n"
+            "Yeni pozisyon icin zorunlu hisse secilmedi."
+        )
+
+    url = (
+        f"https://api.telegram.org/"
+        f"bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    )
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        response = await client.post(
+            url,
+            json={
+                "chat_id": TELEGRAM_CHAT_ID,
+                "text": message
+            }
+        )
+        response.raise_for_status()
+
+    return {
+        "status": "sent",
+        "mode": "weekly",
+        "universe_count": len(V2_UNIVERSE),
+        "strong_candidate_count": len(candidates),
+        "sent_count": len(picks),
+        "symbols": [item["symbol"] for item in picks],
+        "error_count": len(errors),
+        "errors": errors
+    }
+
+
 @app.get("/backtest-monthly")
 async def backtest_monthly(
     year: int,
