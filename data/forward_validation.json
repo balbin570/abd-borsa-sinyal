@@ -161,31 +161,34 @@
       "entry_price": 341.08,
       "results": {
         "5d": -3.4244,
-        "10d": null,
+        "10d": -2.1842,
         "20d": null
       },
       "benchmark_results": {
         "5d": -1.1116,
-        "10d": null,
+        "10d": 0.8152,
         "20d": null
       },
       "excess_results": {
         "5d": -2.3129,
-        "10d": null,
+        "10d": -2.9995,
         "20d": null
       },
-      "result_status": "COMPLETE_5D",
+      "result_status": "COMPLETE_10D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-09-23T01:30:30.661126+00:00",
       "spy_entry_price": 772.79,
       "exit_dates": {
-        "5d": "2026-09-29"
+        "5d": "2026-09-29",
+        "10d": "2026-10-06"
       },
       "exit_prices": {
-        "5d": 329.4
+        "5d": 329.4,
+        "10d": 333.63
       },
       "spy_exit_prices": {
-        "5d": 764.2
+        "5d": 764.2,
+        "10d": 779.09
       }
     },
     {
@@ -214,31 +217,34 @@
       "entry_price": 228.03,
       "results": {
         "5d": -0.3596,
-        "10d": null,
+        "10d": 4.916,
         "20d": null
       },
       "benchmark_results": {
         "5d": -1.1116,
-        "10d": null,
+        "10d": 0.8152,
         "20d": null
       },
       "excess_results": {
         "5d": 0.752,
-        "10d": null,
+        "10d": 4.1008,
         "20d": null
       },
-      "result_status": "COMPLETE_5D",
+      "result_status": "COMPLETE_10D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-09-23T01:30:30.974652+00:00",
       "spy_entry_price": 772.79,
       "exit_dates": {
-        "5d": "2026-09-29"
+        "5d": "2026-09-29",
+        "10d": "2026-10-06"
       },
       "exit_prices": {
-        "5d": 227.21
+        "5d": 227.21,
+        "10d": 239.24
       },
       "spy_exit_prices": {
-        "5d": 764.2
+        "5d": 764.2,
+        "10d": 779.09
       }
     },
     {
@@ -267,31 +273,34 @@
       "entry_price": 380.1,
       "results": {
         "5d": -7.1718,
-        "10d": null,
+        "10d": 0.1526,
         "20d": null
       },
       "benchmark_results": {
         "5d": -1.1116,
-        "10d": null,
+        "10d": 0.8152,
         "20d": null
       },
       "excess_results": {
         "5d": -6.0602,
-        "10d": null,
+        "10d": -0.6626,
         "20d": null
       },
-      "result_status": "COMPLETE_5D",
+      "result_status": "COMPLETE_10D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-09-23T01:30:31.296228+00:00",
       "spy_entry_price": 772.79,
       "exit_dates": {
-        "5d": "2026-09-29"
+        "5d": "2026-09-29",
+        "10d": "2026-10-06"
       },
       "exit_prices": {
-        "5d": 352.84
+        "5d": 352.84,
+        "10d": 380.68
       },
       "spy_exit_prices": {
-        "5d": 764.2
+        "5d": 764.2,
+        "10d": 779.09
       }
     },
     {
@@ -320,31 +329,34 @@
       "entry_price": 379.8,
       "results": {
         "5d": 2.267,
-        "10d": null,
+        "10d": 10.5608,
         "20d": null
       },
       "benchmark_results": {
         "5d": -1.1116,
-        "10d": null,
+        "10d": 0.8152,
         "20d": null
       },
       "excess_results": {
         "5d": 3.3785,
-        "10d": null,
+        "10d": 9.7456,
         "20d": null
       },
-      "result_status": "COMPLETE_5D",
+      "result_status": "COMPLETE_10D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-09-23T01:30:31.608107+00:00",
       "spy_entry_price": 772.79,
       "exit_dates": {
-        "5d": "2026-09-29"
+        "5d": "2026-09-29",
+        "10d": "2026-10-06"
       },
       "exit_prices": {
-        "5d": 388.41
+        "5d": 388.41,
+        "10d": 419.91
       },
       "spy_exit_prices": {
-        "5d": 764.2
+        "5d": 764.2,
+        "10d": 779.09
       }
     },
     {
@@ -796,24 +808,33 @@
       "entry_date": "2026-09-30",
       "entry_price": 198.86,
       "results": {
-        "5d": null,
+        "5d": 6.7334,
         "10d": null,
         "20d": null
       },
       "benchmark_results": {
-        "5d": null,
+        "5d": 1.6492,
         "10d": null,
         "20d": null
       },
       "excess_results": {
-        "5d": null,
+        "5d": 5.0842,
         "10d": null,
         "20d": null
       },
-      "result_status": "ENTRY_RECORDED",
+      "result_status": "COMPLETE_5D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-09-30T02:04:33.090758+00:00",
-      "spy_entry_price": 766.45
+      "spy_entry_price": 766.45,
+      "exit_dates": {
+        "5d": "2026-10-06"
+      },
+      "exit_prices": {
+        "5d": 212.25
+      },
+      "spy_exit_prices": {
+        "5d": 779.09
+      }
     },
     {
       "symbol": "NVDA",
@@ -932,8 +953,8 @@
         "macd_histogram_positive": true
       },
       "entry_definition": "Next US trading day open",
-      "entry_date": null,
-      "entry_price": null,
+      "entry_date": "2026-10-06",
+      "entry_price": 531.68,
       "results": {
         "5d": null,
         "10d": null,
@@ -949,9 +970,10 @@
         "10d": null,
         "20d": null
       },
-      "result_status": "WAITING_FOR_ENTRY",
+      "result_status": "ENTRY_RECORDED",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-10-06T02:57:33.927435+00:00"
+      "telegram_sent_at_utc": "2026-10-06T02:57:33.927435+00:00",
+      "spy_entry_price": 778.15
     }
   ],
   "daily_scans": [
@@ -1144,10 +1166,25 @@
         "filter_pass": true,
         "status": "RESEARCH_ONLY"
       }
+    },
+    {
+      "evaluated_date": "2026-10-06",
+      "recorded_at_utc": "2026-10-07T02:21:01.710462+00:00",
+      "evaluated_stock_count": 70,
+      "active_full_trend_count": 0,
+      "active_full_trend_symbols": [],
+      "new_signal_count": 0,
+      "new_signal_symbols": [],
+      "v4_shadow": {
+        "candidate": "C2 + SPY momentum20 >= 0",
+        "spy_momentum20": 1.7142,
+        "filter_pass": true,
+        "status": "RESEARCH_ONLY"
+      }
     }
   ],
-  "last_successful_scan_market_date": "2026-10-05",
-  "last_updated_at_utc": "2026-10-06T02:57:33.332714+00:00",
+  "last_successful_scan_market_date": "2026-10-06",
+  "last_updated_at_utc": "2026-10-07T02:21:01.710477+00:00",
   "official_forward_signal_count": 17,
   "bootstrap_signal_count": 1,
   "v4_shadow": {
@@ -1155,7 +1192,7 @@
     "status": "RESEARCH_ONLY",
     "official_c2_signal_count": 17,
     "official_v4_shadow_signal_count": 1,
-    "last_scan_spy_momentum20": 0.6025,
+    "last_scan_spy_momentum20": 1.7142,
     "last_scan_filter_pass": true
   }
 }
