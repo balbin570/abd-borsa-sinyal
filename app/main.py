@@ -1456,6 +1456,43 @@ async def _run_weekly_scan():
             else:
                 exits.append({**cur, "action": "CIK"})
 
+        # Previous Friday-close Top-5 performance (equal-weighted, price-only).
+        # Reconstructed using the same 70-stock historical snapshots, NOT actual fills.
+        performance = None
+        previous_dates = {x["data_date"] for x in previous_rows}
+        current_dates = {x["data_date"] for x in current_rows}
+        complete_universe = (
+            not errors
+            and len(current_rows) == len(V2_UNIVERSE)
+            and len(previous_rows) == len(V2_UNIVERSE)
+            and len(previous_dates) == 1
+            and len(current_dates) == 1
+        )
+        if complete_universe and previous_top5:
+            comparisons = []
+            for old in previous_top5:
+                cur = current_by_symbol[old["symbol"]]
+                entry = old["price"]
+                latest = cur["price"]
+                comparisons.append({
+                    "symbol": old["symbol"],
+                    "previous_close": entry,
+                    "current_close": latest,
+                    "return_pct": round((latest / entry - 1) * 100, 2),
+                })
+            mean_return = sum(x["return_pct"] for x in comparisons) / len(comparisons)
+            performance = {
+                "previous_date": next(iter(previous_dates)),
+                "current_date": next(iter(current_dates)),
+                "method": "close_to_close_equal_weight_price_return_no_fees",
+                "previous_top5_reconstructed": True,
+                "stocks": comparisons,
+                "average_return_pct": round(mean_return, 2),
+                "winners": sum(x["return_pct"] > 0 for x in comparisons),
+                "losers": sum(x["return_pct"] < 0 for x in comparisons),
+                "unchanged": sum(x["return_pct"] == 0 for x in comparisons),
+            }
+
         if picks:
             message = "📊 HAFTALIK ABD HISSE PLANI\n"
             message += "Teknik hedefler garanti degildir; ATR tabanli izleme seviyeleridir.\n\n"
@@ -1482,6 +1519,33 @@ async def _run_weekly_scan():
             for item in exits:
                 message += f"{item['symbol']} — CIK | Puan {item['score']} | ${item['price']}\n"
 
+        if performance:
+            message += "\n📈 GECEN HAFTANIN PERFORMANSI (Top-5)\n"
+            message += f"{performance['previous_date']} → {performance['current_date']}\n"
+            for stock in performance["stocks"]:
+                message += (
+                    f"{stock['symbol']}: ${stock['previous_close']:.2f} → "
+                    f"${stock['current_close']:.2f} | {stock['return_pct']:+.2f}%\n"
+                )
+            message += (
+                f"Esit agirlikli ortalama: {performance['average_return_pct']:+.2f}%\n"
+                f"Kazanan: {performance['winners']} | "
+                f"Kaybeden: {performance['losers']} | "
+                f"Degismeyen: {performance['unchanged']}\n"
+                "Not: Onceki Top-5 ayni kurallarla gecmis veriden yeniden olusturuldu. "
+                "Kapanistan kapanisa teorik getiri; gercek islem kari degil. "
+                "Stop/hedef, komisyon ve temettu dahil degil.\n"
+            )
+        else:
+            message += (
+                "\n📈 GECEN HAFTANIN PERFORMANSI\n"
+                "Tam 70/70 veri veya ortak kapanis tarihi dogrulanamadigi icin "
+                "yaniltici getiri hesaplanmadi.\n"
+            )
+
+        if errors:
+            message += f"\n⚠️ Veri hatasi: {len(errors)} sembol. Liste eksik olabilir.\n"
+
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": message})
@@ -1494,6 +1558,7 @@ async def _run_weekly_scan():
             "strong_candidate_count": len(current_candidates),
             "sent_count": len(picks),
             "top5": picks,
+            "weekly_performance": performance,
             "previous_top5": [x["symbol"] for x in previous_top5],
             "continued_outside_top5": continued_outside_top5,
             "exits": exits,
