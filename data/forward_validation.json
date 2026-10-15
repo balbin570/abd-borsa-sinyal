@@ -889,31 +889,34 @@
       "entry_price": 229.98,
       "results": {
         "5d": 3.2568,
-        "10d": null,
+        "10d": -3.7742,
         "20d": null
       },
       "benchmark_results": {
         "5d": 1.6825,
-        "10d": null,
+        "10d": 0.6855,
         "20d": null
       },
       "excess_results": {
         "5d": 1.5744,
-        "10d": null,
+        "10d": -4.4598,
         "20d": null
       },
-      "result_status": "COMPLETE_5D",
+      "result_status": "COMPLETE_10D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-10-01T02:04:42.378018+00:00",
       "spy_entry_price": 764.36,
       "exit_dates": {
-        "5d": "2026-10-07"
+        "5d": "2026-10-07",
+        "10d": "2026-10-14"
       },
       "exit_prices": {
-        "5d": 237.47
+        "5d": 237.47,
+        "10d": 221.3
       },
       "spy_exit_prices": {
-        "5d": 777.22
+        "5d": 777.22,
+        "10d": 769.6
       }
     },
     {
@@ -942,31 +945,34 @@
       "entry_price": 396.94,
       "results": {
         "5d": 3.3103,
-        "10d": null,
+        "10d": 1.6703,
         "20d": null
       },
       "benchmark_results": {
         "5d": 1.6825,
-        "10d": null,
+        "10d": 0.6855,
         "20d": null
       },
       "excess_results": {
         "5d": 1.6279,
-        "10d": null,
+        "10d": 0.9847,
         "20d": null
       },
-      "result_status": "COMPLETE_5D",
+      "result_status": "COMPLETE_10D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-10-01T02:04:42.871208+00:00",
       "spy_entry_price": 764.36,
       "exit_dates": {
-        "5d": "2026-10-07"
+        "5d": "2026-10-07",
+        "10d": "2026-10-14"
       },
       "exit_prices": {
-        "5d": 410.08
+        "5d": 410.08,
+        "10d": 403.57
       },
       "spy_exit_prices": {
-        "5d": 777.22
+        "5d": 777.22,
+        "10d": 769.6
       }
     },
     {
@@ -1061,24 +1067,33 @@
       "entry_date": "2026-10-08",
       "entry_price": 270.98,
       "results": {
-        "5d": null,
+        "5d": 4.6129,
         "10d": null,
         "20d": null
       },
       "benchmark_results": {
-        "5d": null,
+        "5d": -0.6788,
         "10d": null,
         "20d": null
       },
       "excess_results": {
-        "5d": null,
+        "5d": 5.2917,
         "10d": null,
         "20d": null
       },
-      "result_status": "ENTRY_RECORDED",
+      "result_status": "COMPLETE_5D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-10-08T02:46:18.981207+00:00",
-      "spy_entry_price": 774.86
+      "spy_entry_price": 774.86,
+      "exit_dates": {
+        "5d": "2026-10-14"
+      },
+      "exit_prices": {
+        "5d": 283.48
+      },
+      "spy_exit_prices": {
+        "5d": 769.6
+      }
     },
     {
       "symbol": "NVDA",
@@ -1467,7 +1482,7 @@
       },
       "entry_definition": "Next US trading day open",
       "entry_date": "2026-10-13",
-      "entry_price": 399.0,
+      "entry_price": 397.51,
       "results": {
         "5d": null,
         "10d": null,
@@ -1518,7 +1533,7 @@
       },
       "entry_definition": "Next US trading day open",
       "entry_date": "2026-10-13",
-      "entry_price": 208.81,
+      "entry_price": 209.405,
       "results": {
         "5d": null,
         "10d": null,
@@ -1568,6 +1583,57 @@
         "macd_histogram_positive": true
       },
       "entry_definition": "Next US trading day open",
+      "entry_date": "2026-10-14",
+      "entry_price": 186.76,
+      "results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "benchmark_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "excess_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "result_status": "ENTRY_RECORDED",
+      "telegram_sent": true,
+      "telegram_sent_at_utc": "2026-10-14T01:52:20.627923+00:00",
+      "spy_entry_price": 774.92
+    },
+    {
+      "symbol": "LLY",
+      "signal_date": "2026-10-14",
+      "model": "C2-TREND-FROZEN",
+      "model_version": "1.0",
+      "official_forward_sample": true,
+      "sample_status": "OFFICIAL_FORWARD",
+      "v4_shadow": {
+        "candidate": "C2 + SPY momentum20 >= 0",
+        "spy_momentum20": 2.0622,
+        "filter_pass": true,
+        "included_in_v4_shadow": true,
+        "status": "RESEARCH_ONLY"
+      },
+      "recorded_at_utc": "2026-10-15T01:28:14.864785+00:00",
+      "signal_close": 1208.74,
+      "ema20": 1170.5836,
+      "ema50": 1168.2359,
+      "momentum20": 6.233,
+      "rsi14": 57.4102,
+      "macd_histogram": 4.37743,
+      "conditions": {
+        "price_above_ema20": true,
+        "ema20_above_ema50": true,
+        "momentum_5_to_15": true,
+        "rsi_50_to_70": true,
+        "macd_histogram_positive": true
+      },
+      "entry_definition": "Next US trading day open",
       "entry_date": null,
       "entry_price": null,
       "results": {
@@ -1587,7 +1653,57 @@
       },
       "result_status": "WAITING_FOR_ENTRY",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-10-14T01:52:20.627923+00:00"
+      "telegram_sent_at_utc": "2026-10-15T01:28:15.341821+00:00"
+    },
+    {
+      "symbol": "ABBV",
+      "signal_date": "2026-10-14",
+      "model": "C2-TREND-FROZEN",
+      "model_version": "1.0",
+      "official_forward_sample": true,
+      "sample_status": "OFFICIAL_FORWARD",
+      "v4_shadow": {
+        "candidate": "C2 + SPY momentum20 >= 0",
+        "spy_momentum20": 2.0622,
+        "filter_pass": true,
+        "included_in_v4_shadow": true,
+        "status": "RESEARCH_ONLY"
+      },
+      "recorded_at_utc": "2026-10-15T01:28:14.864966+00:00",
+      "signal_close": 283.48,
+      "ema20": 269.1547,
+      "ema50": 261.3148,
+      "momentum20": 7.9883,
+      "rsi14": 69.896,
+      "macd_histogram": 1.523969,
+      "conditions": {
+        "price_above_ema20": true,
+        "ema20_above_ema50": true,
+        "momentum_5_to_15": true,
+        "rsi_50_to_70": true,
+        "macd_histogram_positive": true
+      },
+      "entry_definition": "Next US trading day open",
+      "entry_date": null,
+      "entry_price": null,
+      "results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "benchmark_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "excess_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "result_status": "WAITING_FOR_ENTRY",
+      "telegram_sent": true,
+      "telegram_sent_at_utc": "2026-10-15T01:28:15.798504+00:00"
     }
   ],
   "daily_scans": [
@@ -1909,18 +2025,41 @@
         "filter_pass": true,
         "status": "RESEARCH_ONLY"
       }
+    },
+    {
+      "evaluated_date": "2026-10-14",
+      "recorded_at_utc": "2026-10-15T01:28:14.868346+00:00",
+      "evaluated_stock_count": 70,
+      "active_full_trend_count": 4,
+      "active_full_trend_symbols": [
+        "LLY",
+        "ABBV",
+        "FTNT",
+        "TEAM"
+      ],
+      "new_signal_count": 2,
+      "new_signal_symbols": [
+        "LLY",
+        "ABBV"
+      ],
+      "v4_shadow": {
+        "candidate": "C2 + SPY momentum20 >= 0",
+        "spy_momentum20": 2.0622,
+        "filter_pass": true,
+        "status": "RESEARCH_ONLY"
+      }
     }
   ],
-  "last_successful_scan_market_date": "2026-10-13",
-  "last_updated_at_utc": "2026-10-14T01:52:20.259086+00:00",
-  "official_forward_signal_count": 28,
+  "last_successful_scan_market_date": "2026-10-14",
+  "last_updated_at_utc": "2026-10-15T01:28:14.868350+00:00",
+  "official_forward_signal_count": 30,
   "bootstrap_signal_count": 1,
   "v4_shadow": {
     "candidate": "C2 + SPY momentum20 >= 0",
     "status": "RESEARCH_ONLY",
-    "official_c2_signal_count": 28,
-    "official_v4_shadow_signal_count": 12,
-    "last_scan_spy_momentum20": 2.7225,
+    "official_c2_signal_count": 30,
+    "official_v4_shadow_signal_count": 14,
+    "last_scan_spy_momentum20": 2.0622,
     "last_scan_filter_pass": true
   }
 }
