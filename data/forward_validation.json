@@ -1127,24 +1127,33 @@
       "entry_date": "2026-10-09",
       "entry_price": 233.84,
       "results": {
-        "5d": null,
+        "5d": -7.1031,
         "10d": null,
         "20d": null
       },
       "benchmark_results": {
-        "5d": null,
+        "5d": -0.5733,
         "10d": null,
         "20d": null
       },
       "excess_results": {
-        "5d": null,
+        "5d": -6.5299,
         "10d": null,
         "20d": null
       },
-      "result_status": "ENTRY_RECORDED",
+      "result_status": "COMPLETE_5D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-10-09T03:01:14.798135+00:00",
-      "spy_entry_price": 776.24
+      "spy_entry_price": 776.24,
+      "exit_dates": {
+        "5d": "2026-10-15"
+      },
+      "exit_prices": {
+        "5d": 217.23
+      },
+      "spy_exit_prices": {
+        "5d": 771.79
+      }
     },
     {
       "symbol": "LRCX",
@@ -1178,24 +1187,33 @@
       "entry_date": "2026-10-09",
       "entry_price": 326.0,
       "results": {
-        "5d": null,
+        "5d": -14.8896,
         "10d": null,
         "20d": null
       },
       "benchmark_results": {
-        "5d": null,
+        "5d": -0.5733,
         "10d": null,
         "20d": null
       },
       "excess_results": {
-        "5d": null,
+        "5d": -14.3163,
         "10d": null,
         "20d": null
       },
-      "result_status": "ENTRY_RECORDED",
+      "result_status": "COMPLETE_5D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-10-09T03:01:15.174554+00:00",
-      "spy_entry_price": 776.24
+      "spy_entry_price": 776.24,
+      "exit_dates": {
+        "5d": "2026-10-15"
+      },
+      "exit_prices": {
+        "5d": 277.46
+      },
+      "spy_exit_prices": {
+        "5d": 771.79
+      }
     },
     {
       "symbol": "ADI",
@@ -1229,24 +1247,33 @@
       "entry_date": "2026-10-09",
       "entry_price": 410.31,
       "results": {
-        "5d": null,
+        "5d": -1.55,
         "10d": null,
         "20d": null
       },
       "benchmark_results": {
-        "5d": null,
+        "5d": -0.5733,
         "10d": null,
         "20d": null
       },
       "excess_results": {
-        "5d": null,
+        "5d": -0.9768,
         "10d": null,
         "20d": null
       },
-      "result_status": "ENTRY_RECORDED",
+      "result_status": "COMPLETE_5D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-10-09T03:01:15.550030+00:00",
-      "spy_entry_price": 776.24
+      "spy_entry_price": 776.24,
+      "exit_dates": {
+        "5d": "2026-10-15"
+      },
+      "exit_prices": {
+        "5d": 403.95
+      },
+      "spy_exit_prices": {
+        "5d": 771.79
+      }
     },
     {
       "symbol": "AMAT",
@@ -1634,8 +1661,8 @@
         "macd_histogram_positive": true
       },
       "entry_definition": "Next US trading day open",
-      "entry_date": null,
-      "entry_price": null,
+      "entry_date": "2026-10-15",
+      "entry_price": 1235.04,
       "results": {
         "5d": null,
         "10d": null,
@@ -1651,9 +1678,10 @@
         "10d": null,
         "20d": null
       },
-      "result_status": "WAITING_FOR_ENTRY",
+      "result_status": "ENTRY_RECORDED",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-10-15T01:28:15.341821+00:00"
+      "telegram_sent_at_utc": "2026-10-15T01:28:15.341821+00:00",
+      "spy_entry_price": 766.25
     },
     {
       "symbol": "ABBV",
@@ -1684,6 +1712,57 @@
         "macd_histogram_positive": true
       },
       "entry_definition": "Next US trading day open",
+      "entry_date": "2026-10-15",
+      "entry_price": 288.28,
+      "results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "benchmark_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "excess_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "result_status": "ENTRY_RECORDED",
+      "telegram_sent": true,
+      "telegram_sent_at_utc": "2026-10-15T01:28:15.798504+00:00",
+      "spy_entry_price": 766.25
+    },
+    {
+      "symbol": "MSFT",
+      "signal_date": "2026-10-15",
+      "model": "C2-TREND-FROZEN",
+      "model_version": "1.0",
+      "official_forward_sample": true,
+      "sample_status": "OFFICIAL_FORWARD",
+      "v4_shadow": {
+        "candidate": "C2 + SPY momentum20 >= 0",
+        "spy_momentum20": 1.2051,
+        "filter_pass": true,
+        "included_in_v4_shadow": true,
+        "status": "RESEARCH_ONLY"
+      },
+      "recorded_at_utc": "2026-10-16T01:14:09.860243+00:00",
+      "signal_close": 539.44,
+      "ema20": 521.8781,
+      "ema50": 497.8125,
+      "momentum20": 8.3757,
+      "rsi14": 66.2251,
+      "macd_histogram": 1.278768,
+      "conditions": {
+        "price_above_ema20": true,
+        "ema20_above_ema50": true,
+        "momentum_5_to_15": true,
+        "rsi_50_to_70": true,
+        "macd_histogram_positive": true
+      },
+      "entry_definition": "Next US trading day open",
       "entry_date": null,
       "entry_price": null,
       "results": {
@@ -1703,7 +1782,207 @@
       },
       "result_status": "WAITING_FOR_ENTRY",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-10-15T01:28:15.798504+00:00"
+      "telegram_sent_at_utc": "2026-10-16T01:14:10.297601+00:00"
+    },
+    {
+      "symbol": "PLTR",
+      "signal_date": "2026-10-15",
+      "model": "C2-TREND-FROZEN",
+      "model_version": "1.0",
+      "official_forward_sample": true,
+      "sample_status": "OFFICIAL_FORWARD",
+      "v4_shadow": {
+        "candidate": "C2 + SPY momentum20 >= 0",
+        "spy_momentum20": 1.2051,
+        "filter_pass": true,
+        "included_in_v4_shadow": true,
+        "status": "RESEARCH_ONLY"
+      },
+      "recorded_at_utc": "2026-10-16T01:14:09.861193+00:00",
+      "signal_close": 200.5,
+      "ema20": 193.7559,
+      "ema50": 179.8636,
+      "momentum20": 13.7653,
+      "rsi14": 65.0794,
+      "macd_histogram": 0.527479,
+      "conditions": {
+        "price_above_ema20": true,
+        "ema20_above_ema50": true,
+        "momentum_5_to_15": true,
+        "rsi_50_to_70": true,
+        "macd_histogram_positive": true
+      },
+      "entry_definition": "Next US trading day open",
+      "entry_date": null,
+      "entry_price": null,
+      "results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "benchmark_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "excess_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "result_status": "WAITING_FOR_ENTRY",
+      "telegram_sent": true,
+      "telegram_sent_at_utc": "2026-10-16T01:14:10.669539+00:00"
+    },
+    {
+      "symbol": "DIS",
+      "signal_date": "2026-10-15",
+      "model": "C2-TREND-FROZEN",
+      "model_version": "1.0",
+      "official_forward_sample": true,
+      "sample_status": "OFFICIAL_FORWARD",
+      "v4_shadow": {
+        "candidate": "C2 + SPY momentum20 >= 0",
+        "spy_momentum20": 1.2051,
+        "filter_pass": true,
+        "included_in_v4_shadow": true,
+        "status": "RESEARCH_ONLY"
+      },
+      "recorded_at_utc": "2026-10-16T01:14:09.864145+00:00",
+      "signal_close": 110.68,
+      "ema20": 106.4836,
+      "ema50": 105.1341,
+      "momentum20": 5.0593,
+      "rsi14": 65.9845,
+      "macd_histogram": 0.651548,
+      "conditions": {
+        "price_above_ema20": true,
+        "ema20_above_ema50": true,
+        "momentum_5_to_15": true,
+        "rsi_50_to_70": true,
+        "macd_histogram_positive": true
+      },
+      "entry_definition": "Next US trading day open",
+      "entry_date": null,
+      "entry_price": null,
+      "results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "benchmark_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "excess_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "result_status": "WAITING_FOR_ENTRY",
+      "telegram_sent": true,
+      "telegram_sent_at_utc": "2026-10-16T01:14:11.060767+00:00"
+    },
+    {
+      "symbol": "NOW",
+      "signal_date": "2026-10-15",
+      "model": "C2-TREND-FROZEN",
+      "model_version": "1.0",
+      "official_forward_sample": true,
+      "sample_status": "OFFICIAL_FORWARD",
+      "v4_shadow": {
+        "candidate": "C2 + SPY momentum20 >= 0",
+        "spy_momentum20": 1.2051,
+        "filter_pass": true,
+        "included_in_v4_shadow": true,
+        "status": "RESEARCH_ONLY"
+      },
+      "recorded_at_utc": "2026-10-16T01:14:09.864443+00:00",
+      "signal_close": 148.57,
+      "ema20": 138.4294,
+      "ema50": 132.593,
+      "momentum20": 7.294,
+      "rsi14": 68.1018,
+      "macd_histogram": 0.589124,
+      "conditions": {
+        "price_above_ema20": true,
+        "ema20_above_ema50": true,
+        "momentum_5_to_15": true,
+        "rsi_50_to_70": true,
+        "macd_histogram_positive": true
+      },
+      "entry_definition": "Next US trading day open",
+      "entry_date": null,
+      "entry_price": null,
+      "results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "benchmark_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "excess_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "result_status": "WAITING_FOR_ENTRY",
+      "telegram_sent": true,
+      "telegram_sent_at_utc": "2026-10-16T01:14:11.434093+00:00"
+    },
+    {
+      "symbol": "RBLX",
+      "signal_date": "2026-10-15",
+      "model": "C2-TREND-FROZEN",
+      "model_version": "1.0",
+      "official_forward_sample": true,
+      "sample_status": "OFFICIAL_FORWARD",
+      "v4_shadow": {
+        "candidate": "C2 + SPY momentum20 >= 0",
+        "spy_momentum20": 1.2051,
+        "filter_pass": true,
+        "included_in_v4_shadow": true,
+        "status": "RESEARCH_ONLY"
+      },
+      "recorded_at_utc": "2026-10-16T01:14:09.866170+00:00",
+      "signal_close": 51.13,
+      "ema20": 46.7173,
+      "ema50": 45.5701,
+      "momentum20": 7.6421,
+      "rsi14": 61.1296,
+      "macd_histogram": 0.424423,
+      "conditions": {
+        "price_above_ema20": true,
+        "ema20_above_ema50": true,
+        "momentum_5_to_15": true,
+        "rsi_50_to_70": true,
+        "macd_histogram_positive": true
+      },
+      "entry_definition": "Next US trading day open",
+      "entry_date": null,
+      "entry_price": null,
+      "results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "benchmark_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "excess_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "result_status": "WAITING_FOR_ENTRY",
+      "telegram_sent": true,
+      "telegram_sent_at_utc": "2026-10-16T01:14:11.910804+00:00"
     }
   ],
   "daily_scans": [
@@ -2048,18 +2327,46 @@
         "filter_pass": true,
         "status": "RESEARCH_ONLY"
       }
+    },
+    {
+      "evaluated_date": "2026-10-15",
+      "recorded_at_utc": "2026-10-16T01:14:09.867096+00:00",
+      "evaluated_stock_count": 70,
+      "active_full_trend_count": 6,
+      "active_full_trend_symbols": [
+        "MSFT",
+        "PLTR",
+        "LLY",
+        "DIS",
+        "NOW",
+        "RBLX"
+      ],
+      "new_signal_count": 5,
+      "new_signal_symbols": [
+        "MSFT",
+        "PLTR",
+        "DIS",
+        "NOW",
+        "RBLX"
+      ],
+      "v4_shadow": {
+        "candidate": "C2 + SPY momentum20 >= 0",
+        "spy_momentum20": 1.2051,
+        "filter_pass": true,
+        "status": "RESEARCH_ONLY"
+      }
     }
   ],
-  "last_successful_scan_market_date": "2026-10-14",
-  "last_updated_at_utc": "2026-10-15T01:28:14.868350+00:00",
-  "official_forward_signal_count": 30,
+  "last_successful_scan_market_date": "2026-10-15",
+  "last_updated_at_utc": "2026-10-16T01:14:09.867102+00:00",
+  "official_forward_signal_count": 35,
   "bootstrap_signal_count": 1,
   "v4_shadow": {
     "candidate": "C2 + SPY momentum20 >= 0",
     "status": "RESEARCH_ONLY",
-    "official_c2_signal_count": 30,
-    "official_v4_shadow_signal_count": 14,
-    "last_scan_spy_momentum20": 2.0622,
+    "official_c2_signal_count": 35,
+    "official_v4_shadow_signal_count": 19,
+    "last_scan_spy_momentum20": 1.2051,
     "last_scan_filter_pass": true
   }
 }
