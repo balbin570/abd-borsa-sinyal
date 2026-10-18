@@ -9792,6 +9792,57 @@ EXPANDED_STATE = {"running": False, "last_result": None, "last_error": None, "st
 EXPANDED_API_LOCK = asyncio.Lock()
 EXPANDED_LAST_REQUEST = 0.0
 
+# V5.2 only: durable checkpoint in Supabase Postgres (not used by C2/V4).
+# Render Environment must contain DATABASE_URL; requirements.txt needs psycopg2-binary.
+import psycopg2 as _v5_pg
+from psycopg2.extras import Json as _v5_json
+
+_V5_RUN_KEY = "expanded_forward_v52"
+
+def _v5_database(operation, payload=None):
+    url = os.getenv("DATABASE_URL", "")
+    if not url:
+        raise RuntimeError("DATABASE_URL missing in Render Environment")
+    # New short-lived connection for each checkpoint: safe across worker restarts.
+    with _v5_pg.connect(url, connect_timeout=15, sslmode="require") as conn:
+        with conn.cursor() as cur:
+            cur.execute("""CREATE TABLE IF NOT EXISTS v5_expanded_checkpoint (
+                run_key TEXT PRIMARY KEY,
+                state JSONB NOT NULL,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )""")
+            if operation == "read":
+                cur.execute("SELECT state FROM v5_expanded_checkpoint WHERE run_key=%s", (_V5_RUN_KEY,))
+                row = cur.fetchone()
+                return row[0] if row else None
+            if operation == "write":
+                cur.execute("""INSERT INTO v5_expanded_checkpoint (run_key,state,updated_at)
+                    VALUES (%s,%s,NOW()) ON CONFLICT (run_key)
+                    DO UPDATE SET state=EXCLUDED.state, updated_at=NOW()""",
+                    (_V5_RUN_KEY, _v5_json(payload)))
+                return True
+            raise ValueError("Unknown database operation")
+
+async def _v5_read():
+    return await asyncio.to_thread(_v5_database, "read")
+
+async def _v5_write(payload):
+    return await asyncio.to_thread(_v5_database, "write", payload)
+
+def _v5_summary(rows, errors):
+    return {
+        "status": "COMPLETE" if not errors else "PARTIAL_DATA",
+        "mode": "RESEARCH_SHADOW_ONLY", "universe_count": len(EXPANDED_UNIVERSE),
+        "baseline_count": len(V2_UNIVERSE), "evaluated_count": len(rows),
+        "error_count": len(errors), "errors": errors,
+        "c2_new_signals": [r for r in rows if r["c2_new_signal"]],
+        "v4_shadow_new_signals": [r for r in rows if r["v4_shadow_new_signal"]],
+        "active_c2_count": sum(bool(r["c2_active"]) for r in rows),
+        "rows": rows,
+        "note": "Current snapshot only; no persistent 5/10/20-day forward performance ledger. "
+                "Incomplete scan must not be interpreted as zero signals."
+    }
+
 async def _expanded_fetch(client, symbol):
     """Conservative request pacing. Other endpoints/processes may share quota."""
     global EXPANDED_LAST_REQUEST
@@ -9819,17 +9870,38 @@ async def _expanded_fetch(client, symbol):
 async def _expanded_scan_worker():
     EXPANDED_STATE["running"] = True
     EXPANDED_STATE["last_error"] = None
-    EXPANDED_STATE["started_at_utc"] = datetime.utcnow().isoformat() + "Z"
-    rows, errors = [], []
     try:
         if not TWELVE_DATA_API_KEY:
             raise RuntimeError("TWELVE_DATA_API_KEY missing")
+        saved = await _v5_read()
+        if saved and saved.get("status") == "COMPLETE":
+            EXPANDED_STATE["last_result"] = saved.get("result")
+            return
+        if saved and saved.get("status") in ("RUNNING", "INTERRUPTED", "ERROR", "PARTIAL_DATA"):
+            rows = list(saved.get("rows", []))
+            errors = list(saved.get("errors", []))
+            started = saved.get("started_at_utc")
+        else:
+            rows, errors = [], []
+            started = datetime.utcnow().isoformat() + "Z"
+        EXPANDED_STATE["started_at_utc"] = started
+        # A previously interrupted scan may have errors: retry failed symbols.
+        completed = {r["symbol"] for r in rows}
+        errors = [e for e in errors if e.get("symbol") not in completed]
+        async def checkpoint(status, result=None, last_error=None):
+            await _v5_write({"status": status, "started_at_utc": started,
+                             "rows": rows, "errors": errors, "result": result,
+                             "last_error": last_error,
+                             "processed_count": len(rows) + len(errors),
+                             "updated_at_utc": datetime.utcnow().isoformat() + "Z"})
+        await checkpoint("RUNNING")
         async with httpx.AsyncClient(timeout=35) as client:
-            # One SPY read per scan, shared by all C2/V4 shadow comparisons.
             spy_data = await _expanded_fetch(client, "SPY")
             spy_values = sorted(spy_data["values"], key=lambda x: x["datetime"])
             spy_by_date = {v["datetime"]: float(v["close"]) for v in spy_values}
             for symbol in EXPANDED_UNIVERSE:
+                if symbol in completed:
+                    continue
                 try:
                     data = await _expanded_fetch(client, symbol)
                     values = sorted(data["values"], key=lambda x: x["datetime"])
@@ -9852,22 +9924,27 @@ async def _expanded_scan_worker():
                                  "v4_shadow_new_signal": new_signal and spy_mom is not None and spy_mom >= 0,
                                  "spy_momentum20_pct": round(spy_mom, 4) if spy_mom is not None else None,
                                  "metrics": now})
+                    completed.add(symbol)
+                    errors = [e for e in errors if e.get("symbol") != symbol]
                 except Exception as exc:
+                    errors = [e for e in errors if e.get("symbol") != symbol]
                     errors.append({"symbol": symbol, "error": str(exc)[:350]})
-        EXPANDED_STATE["last_result"] = {
-            "status": "COMPLETE" if not errors else "PARTIAL_DATA",
-            "mode": "RESEARCH_SHADOW_ONLY", "universe_count": len(EXPANDED_UNIVERSE),
-            "baseline_count": len(V2_UNIVERSE), "evaluated_count": len(rows),
-            "error_count": len(errors), "errors": errors,
-            "c2_new_signals": [r for r in rows if r["c2_new_signal"]],
-            "v4_shadow_new_signals": [r for r in rows if r["v4_shadow_new_signal"]],
-            "active_c2_count": sum(r["c2_active"] for r in rows),
-            "rows": rows,
-            "note": "Current snapshot only; no persistent 5/10/20-day forward performance ledger. "
-                    "Incomplete scan must not be interpreted as zero signals."
-        }
+                # Critical: checkpoint every symbol, including failed attempts.
+                await checkpoint("RUNNING")
+        result = _v5_summary(rows, errors)
+        EXPANDED_STATE["last_result"] = result
+        await checkpoint(result["status"], result=result)
     except Exception as exc:
         EXPANDED_STATE["last_error"] = str(exc)
+        # Existing checkpoint remains available even if DB is temporarily down.
+        try:
+            saved = await _v5_read()
+            if saved:
+                saved["status"] = "ERROR"
+                saved["last_error"] = str(exc)
+                await _v5_write(saved)
+        except Exception:
+            pass
     finally:
         EXPANDED_STATE["running"] = False
 
@@ -9881,16 +9958,39 @@ async def expanded_universe_info():
 async def expanded_forward_start(background_tasks: BackgroundTasks):
     if EXPANDED_STATE["running"]:
         return {"status": "already_running"}
-    # Reserve immediately to avoid duplicate starts in the same process.
+    try:
+        saved = await _v5_read()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"V5 database unavailable: {exc.__class__.__name__}")
+    if saved and saved.get("status") == "COMPLETE":
+        return {"status": "already_complete", "status_url": "/v5/expanded-forward-status",
+                "note": "Existing completed scan preserved. No duplicate scan started."}
     EXPANDED_STATE["running"] = True
     background_tasks.add_task(_expanded_scan_worker)
-    return {"status": "started", "mode": "RESEARCH_SHADOW_ONLY",
+    return {"status": "resuming" if saved else "started", "mode": "RESEARCH_SHADOW_ONLY",
             "estimated_minimum_minutes": round((len(EXPANDED_UNIVERSE)+1)*11/60, 1),
             "status_url": "/v5/expanded-forward-status"}
 
 @app.get("/v5/expanded-forward-status")
 async def expanded_forward_status():
-    return EXPANDED_STATE
+    try:
+        saved = await _v5_read()
+    except Exception as exc:
+        return {**EXPANDED_STATE, "database_error": exc.__class__.__name__}
+    if not saved:
+        return {**EXPANDED_STATE, "database": "connected", "processed_count": 0}
+    # 'RUNNING' from a previous Render process is not proof it is still alive.
+    status = saved.get("status")
+    if status == "RUNNING" and not EXPANDED_STATE["running"]:
+        status = "INTERRUPTED"
+    return {"running": EXPANDED_STATE["running"], "status": status,
+            "processed_count": saved.get("processed_count", 0),
+            "universe_count": len(EXPANDED_UNIVERSE),
+            "started_at_utc": saved.get("started_at_utc"),
+            "updated_at_utc": saved.get("updated_at_utc"),
+            "last_error": EXPANDED_STATE["last_error"] or saved.get("last_error"),
+            "last_result": saved.get("result"), "database": "connected",
+            "note": "If INTERRUPTED, call /v5/expanded-forward-start to resume."}
 
 from app.strategy_v3 import make_router
 
