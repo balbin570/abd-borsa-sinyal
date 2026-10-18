@@ -10215,3 +10215,144 @@ async def overnight_test_telegram(request: Request):
     return {'status': 'sent', 'mode': 'TEST_ONLY',
             'telegram_message_id': payload['result']['message_id'],
             'sent_at_ny': now.isoformat()}
+
+
+# ============================================================
+# V6 WEEKLY TOP-5 FILTER COMPARISON (RESEARCH ONLY)
+# No Telegram, orders, or modifications to production selection.
+# ============================================================
+@app.get("/v6/weekly-filter-backtest")
+async def v6_weekly_filter_backtest(
+    start_date: str = "2024-01-01",
+    end_date: str = "2026-09-30",
+    round_trip_cost_pct: float = 0.15,
+):
+    if not (0 <= round_trip_cost_pct <= 5):
+        raise HTTPException(status_code=400, detail="round_trip_cost_pct must be 0..5")
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        end = datetime.strptime(end_date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Dates must be YYYY-MM-DD")
+    if end < start:
+        raise HTTPException(status_code=400, detail="end_date precedes start_date")
+
+    # Require a common, completed daily data set; never silently use a subset.
+    universe = list(V2_UNIVERSE)
+    missing = [symbol for symbol in universe if symbol not in STOCK_CACHE]
+    if missing:
+        return {"status": "DATA_UNAVAILABLE", "mode": "RESEARCH_ONLY",
+                "required_symbols": len(universe), "missing_count": len(missing),
+                "missing_symbols": missing,
+                "note": "Load a complete historical research snapshot before comparison. No live scan initiated."}
+    series = {}
+    for symbol in universe:
+        raw = STOCK_CACHE[symbol].get("values", [])
+        bars = sorted(raw, key=lambda x: x["datetime"])
+        if len(bars) < 90:
+            return {"status": "DATA_UNAVAILABLE", "symbol": symbol, "reason": "fewer than 90 daily bars"}
+        series[symbol] = {x["datetime"][:10]: x for x in bars}
+    common = sorted(set.intersection(*(set(x) for x in series.values())))
+    if len(common) < 90:
+        return {"status": "DATA_UNAVAILABLE", "reason": "insufficient common dates", "common_dates": len(common)}
+
+    # Each entry uses the last completed bar of a week; buy next trading day's
+    # open and mark/exit at the last bar of the following trading week.
+    week_ends = []
+    for i, d in enumerate(common):
+        this_week = datetime.strptime(d, "%Y-%m-%d").date().isocalendar()[:2]
+        next_week = (datetime.strptime(common[i+1], "%Y-%m-%d").date().isocalendar()[:2]
+                     if i+1 < len(common) else None)
+        if next_week != this_week:
+            week_ends.append(i)
+    if len(week_ends) < 3:
+        return {"status": "DATA_UNAVAILABLE", "reason": "insufficient weekly periods"}
+
+    # Compute each symbol's snapshots once, not separately for each model.
+    snapshots = {}
+    for symbol in universe:
+        dates = sorted(series[symbol])
+        bars = [series[symbol][d] for d in dates]
+        index = {d: i for i, d in enumerate(dates)}
+        snap = {}
+        for pos in week_ends[:-1]:
+            date = common[pos]
+            j = index.get(date)
+            if j is None or j < 60:
+                continue
+            try:
+                snap[date] = _weekly_score_snapshot(bars[:j+1])
+            except (ValueError, ZeroDivisionError, KeyError, TypeError):
+                continue
+        snapshots[symbol] = snap
+
+    records = {"V5_BASELINE": [], "V6_FILTERED": []}
+    skipped_weeks = 0
+    for k in range(len(week_ends)-1):
+        idx = week_ends[k]
+        next_idx = week_ends[k+1]
+        signal_date = common[idx]
+        if not (start <= datetime.strptime(signal_date, "%Y-%m-%d").date() <= end):
+            continue
+        if idx+1 >= len(common):
+            continue
+        entry_date = common[idx+1]
+        exit_date = common[next_idx]
+        candidates = []
+        for symbol in universe:
+            item = snapshots[symbol].get(signal_date)
+            if item and item["score"] >= 75:
+                candidates.append((symbol, item))
+        candidates.sort(key=lambda x: (x[1]["score"], x[1]["momentum20"], x[1]["macd_histogram"]), reverse=True)
+        selections = {
+            "V5_BASELINE": candidates[:5],
+            "V6_FILTERED": [(symbol, item) for symbol, item in candidates
+                            if 50 <= item["rsi14"] <= 70
+                            and 5 <= item["momentum20"] <= 20
+                            and item["price"] > item["ema20"] > item["ema50"]][:5],
+        }
+        for model, picks in selections.items():
+            for symbol, item in picks:
+                try:
+                    open_price = float(series[symbol][entry_date]["open"])
+                    close_price = float(series[symbol][exit_date]["close"])
+                    if open_price <= 0:
+                        continue
+                    gross = (close_price/open_price-1)*100
+                    records[model].append({
+                        "week": signal_date, "symbol": symbol,
+                        "entry_date": entry_date, "exit_date": exit_date,
+                        "rsi": item["rsi14"], "momentum20_pct": item["momentum20"],
+                        "score": item["score"],
+                        "return_pct": round(gross-round_trip_cost_pct, 4),
+                    })
+                except (KeyError, TypeError, ValueError, ZeroDivisionError):
+                    skipped_weeks += 1
+
+    def summarize(rows):
+        returns = [x["return_pct"] for x in rows]
+        weekly = {}
+        for row in rows:
+            weekly.setdefault(row["week"], []).append(row["return_pct"])
+        weekly_avg = [sum(v)/len(v) for _,v in sorted(weekly.items())]
+        equity = 1.0
+        peak = 1.0
+        max_dd = 0.0
+        for r in weekly_avg:
+            equity *= 1+r/100
+            peak = max(peak, equity)
+            max_dd = min(max_dd, (equity/peak-1)*100)
+        return {"trade_count": len(rows), "weeks_with_picks": len(weekly),
+                "avg_return_pct": round(statistics.mean(returns), 3) if returns else None,
+                "median_return_pct": round(statistics.median(returns), 3) if returns else None,
+                "win_rate_pct": round(sum(x>0 for x in returns)/len(returns)*100, 2) if returns else None,
+                "compounded_active_week_return_pct": round((equity-1)*100, 2) if weekly else None,
+                "max_drawdown_active_weeks_pct": round(max_dd, 2) if weekly else None,
+                "recent_trades": rows[-15:]}
+    return {"status": "OK", "mode": "RESEARCH_ONLY", "live_strategy_changed": False,
+            "universe_count": len(universe), "common_daily_bars": len(common),
+            "date_range": [start_date, end_date], "round_trip_cost_pct": round_trip_cost_pct,
+            "entry": "next common trading day open", "exit": "next week's last common trading day close",
+            "models": {key: summarize(value) for key, value in records.items()},
+            "skipped_entries": skipped_weeks,
+            "limitations": "Weekly close exit only; no intraday stop/target execution, slippage, dividends, survivorship-bias adjustment or corporate-action audit. Active-week compounding is not a deployable portfolio equity curve. No SPY gate applied. Historical research is not an independent out-of-sample validation."}
