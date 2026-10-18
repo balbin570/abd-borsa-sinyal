@@ -9779,6 +9779,119 @@ async def v4_c2_exact_event_backtest(
         ),
     }
 
+
+# ============================================================
+# EXPANDED C2/V4 SHADOW RESEARCH (separate from frozen 70)
+# ============================================================
+# Existing V2_UNIVERSE, historical tests and /v2/stage8-forward-scan unchanged.
+import time as _expanded_time
+
+EXPANDED_CANDIDATES = ['ADP', 'ABNB', 'ACN', 'AEP', 'AIG', 'ALB', 'ALL', 'AMGN', 'ANET', 'APD', 'APO', 'APP', 'AR', 'ASML', 'AXP', 'AZO', 'BA', 'BAX', 'BBY', 'BDX', 'BEN', 'BK', 'BKNG', 'BLK', 'BMY', 'BSX', 'BURL', 'C', 'CARR', 'CB', 'CDNS', 'CEG', 'CF', 'CHD', 'CHRW', 'CI', 'CL', 'CMCSA', 'CME', 'CMG', 'CMI', 'COF', 'COP', 'COR', 'CPRT', 'CPB', 'CSCO', 'CSX', 'CTAS', 'CTVA', 'CVS', 'D', 'DAL', 'DASH', 'DE', 'DELL', 'DG', 'DHI', 'DHR', 'DLR', 'DOCU', 'DOV', 'DOW', 'DPZ', 'DTE', 'DUK', 'EA', 'EBAY', 'ECL', 'ED', 'EFX', 'EL', 'EMR', 'EOG', 'EQIX', 'EQR', 'ETN', 'EW', 'EXC', 'EXPD', 'F', 'FAST', 'FCX', 'FDX', 'FI', 'FICO', 'FIS', 'FITB', 'FL', 'FSLR', 'GD', 'GDDY', 'GILD', 'GIS', 'GL', 'GLW', 'GM', 'GPC', 'GPN', 'GRMN', 'HAL', 'HAS', 'HCA', 'HES', 'HIG', 'HLT', 'HON', 'HPQ', 'HRL', 'HSY', 'HUM', 'IBM', 'ICE', 'IDXX', 'IEX', 'ILMN', 'INTC', 'IP', 'IPG', 'IQV', 'IR', 'ISRG', 'IT', 'ITW', 'J', 'JCI', 'K', 'KDP', 'KEY', 'KHC', 'KIM', 'KKR', 'KR', 'LEN', 'LH', 'LIN', 'LKQ', 'LMT', 'LNT', 'LRCX', 'LULU', 'LVS', 'LYB', 'M', 'MAR', 'MAS', 'MCHP', 'MCO', 'MDT', 'MET', 'MGM', 'MKC', 'MLM', 'MMC', 'MMM', 'MNST', 'MO', 'MOS', 'MPC', 'MPWR', 'MRVL', 'MSI', 'MTB', 'MTCH', 'NDAQ', 'NDSN', 'NEE', 'NEM', 'NOC', 'NRG', 'NSC', 'NTAP', 'NTRS', 'NUE', 'NVR', 'O', 'ODFL', 'OKE', 'OMC', 'ON', 'OTIS', 'OXY', 'PAYC', 'PAYX', 'PCAR', 'PCG', 'PDD', 'PEG', 'PFE', 'PG', 'PH', 'PHM', 'PKG', 'PNC', 'PNR', 'PPG', 'PRU', 'PSA', 'PTC', 'PWR', 'PYPL', 'RCL', 'REGN', 'RF', 'RHI', 'ROK', 'ROL', 'ROP', 'ROST', 'RSG', 'SBUX', 'SCHW', 'SHW', 'SJM', 'SLB', 'SMCI', 'SNA', 'SO', 'SPG', 'SPGI', 'SRE', 'STLD', 'STT', 'STX', 'STZ', 'SWK', 'SWKS', 'SYF', 'SYK', 'SYY', 'T', 'TAP', 'TDG', 'TDY', 'TEAM', 'TECH', 'TEL', 'TER', 'TFC', 'TGT', 'TJX', 'TMO', 'TMUS', 'TPR', 'TRGP', 'TRMB', 'TROW', 'TRV', 'TSCO', 'TT', 'TTD', 'TYL', 'UAL', 'UBER', 'UDR', 'UHS', 'ULTA', 'UNP', 'URI', 'USB', 'VICI', 'VLO', 'VMC', 'VRSK', 'VRSN', 'VRTX', 'VTR', 'VTRS', 'VZ', 'WAB', 'WAT', 'WBA', 'WBD', 'WDC', 'WEC', 'WELL', 'WM', 'WMB', 'WST', 'WY', 'WYNN', 'XEL', 'XYL', 'YUM', 'ZBH', 'ZBRA', 'ZM', 'ZTS']
+EXPANDED_UNIVERSE = list(dict.fromkeys(V2_UNIVERSE + EXPANDED_CANDIDATES))[:250]
+EXPANDED_STATE = {"running": False, "last_result": None, "last_error": None, "started_at_utc": None}
+EXPANDED_API_LOCK = asyncio.Lock()
+EXPANDED_LAST_REQUEST = 0.0
+
+async def _expanded_fetch(client, symbol):
+    """Conservative request pacing. Other endpoints/processes may share quota."""
+    global EXPANDED_LAST_REQUEST
+    async with EXPANDED_API_LOCK:
+        elapsed = _expanded_time.monotonic() - EXPANDED_LAST_REQUEST
+        if elapsed < 11.0:
+            await asyncio.sleep(11.0 - elapsed)
+        for attempt in range(3):
+            EXPANDED_LAST_REQUEST = _expanded_time.monotonic()
+            response = await client.get(
+                "https://api.twelvedata.com/time_series",
+                params={"symbol": symbol, "interval": "1day", "outputsize": 100,
+                        "apikey": TWELVE_DATA_API_KEY},
+            )
+            response.raise_for_status()
+            data = response.json()
+            if "values" in data and data["values"]:
+                return data
+            if data.get("code") == 429 and attempt < 2:
+                await asyncio.sleep(70)
+                continue
+            raise RuntimeError(str(data)[:300])
+        raise RuntimeError("Rate limit after retries")
+
+async def _expanded_scan_worker():
+    EXPANDED_STATE["running"] = True
+    EXPANDED_STATE["last_error"] = None
+    EXPANDED_STATE["started_at_utc"] = datetime.utcnow().isoformat() + "Z"
+    rows, errors = [], []
+    try:
+        if not TWELVE_DATA_API_KEY:
+            raise RuntimeError("TWELVE_DATA_API_KEY missing")
+        async with httpx.AsyncClient(timeout=35) as client:
+            # One SPY read per scan, shared by all C2/V4 shadow comparisons.
+            spy_data = await _expanded_fetch(client, "SPY")
+            spy_values = sorted(spy_data["values"], key=lambda x: x["datetime"])
+            spy_by_date = {v["datetime"]: float(v["close"]) for v in spy_values}
+            for symbol in EXPANDED_UNIVERSE:
+                try:
+                    data = await _expanded_fetch(client, symbol)
+                    values = sorted(data["values"], key=lambda x: x["datetime"])
+                    closes = [float(v["close"]) for v in values]
+                    if len(closes) < 61:
+                        raise RuntimeError("Need >=61 completed bars")
+                    now = c2_forward_metrics(closes)
+                    prev = c2_forward_metrics(closes[:-1])
+                    date = values[-1]["datetime"]
+                    spy_idx = next((i for i,v in enumerate(spy_values) if v["datetime"] == date), None)
+                    spy_mom = None
+                    if spy_idx is not None and spy_idx >= 20:
+                        prior = float(spy_values[spy_idx-20]["close"])
+                        spy_mom = (spy_by_date[date] / prior - 1) * 100 if prior else None
+                    new_signal = bool(now["full_trend"] and not prev["full_trend"])
+                    rows.append({"symbol": symbol, "date": date,
+                                 "group": "BASELINE_70" if symbol in V2_UNIVERSE else "EXPANSION",
+                                 "c2_new_signal": new_signal,
+                                 "c2_active": now["full_trend"],
+                                 "v4_shadow_new_signal": new_signal and spy_mom is not None and spy_mom >= 0,
+                                 "spy_momentum20_pct": round(spy_mom, 4) if spy_mom is not None else None,
+                                 "metrics": now})
+                except Exception as exc:
+                    errors.append({"symbol": symbol, "error": str(exc)[:350]})
+        EXPANDED_STATE["last_result"] = {
+            "status": "COMPLETE" if not errors else "PARTIAL_DATA",
+            "mode": "RESEARCH_SHADOW_ONLY", "universe_count": len(EXPANDED_UNIVERSE),
+            "baseline_count": len(V2_UNIVERSE), "evaluated_count": len(rows),
+            "error_count": len(errors), "errors": errors,
+            "c2_new_signals": [r for r in rows if r["c2_new_signal"]],
+            "v4_shadow_new_signals": [r for r in rows if r["v4_shadow_new_signal"]],
+            "active_c2_count": sum(r["c2_active"] for r in rows),
+            "rows": rows,
+            "note": "Current snapshot only; no persistent 5/10/20-day forward performance ledger. "
+                    "Incomplete scan must not be interpreted as zero signals."
+        }
+    except Exception as exc:
+        EXPANDED_STATE["last_error"] = str(exc)
+    finally:
+        EXPANDED_STATE["running"] = False
+
+@app.get("/v5/expanded-universe")
+async def expanded_universe_info():
+    return {"mode": "RESEARCH_SHADOW_ONLY", "count": len(EXPANDED_UNIVERSE),
+            "baseline_count": len(V2_UNIVERSE), "symbols": EXPANDED_UNIVERSE,
+            "note": "Candidate list; individual ticker availability checked during scan."}
+
+@app.get("/v5/expanded-forward-start")
+async def expanded_forward_start(background_tasks: BackgroundTasks):
+    if EXPANDED_STATE["running"]:
+        return {"status": "already_running"}
+    # Reserve immediately to avoid duplicate starts in the same process.
+    EXPANDED_STATE["running"] = True
+    background_tasks.add_task(_expanded_scan_worker)
+    return {"status": "started", "mode": "RESEARCH_SHADOW_ONLY",
+            "estimated_minimum_minutes": round((len(EXPANDED_UNIVERSE)+1)*11/60, 1),
+            "status_url": "/v5/expanded-forward-status"}
+
+@app.get("/v5/expanded-forward-status")
+async def expanded_forward_status():
+    return EXPANDED_STATE
+
 from app.strategy_v3 import make_router
 
 app.include_router(
