@@ -10003,3 +10003,183 @@ from app.tracker_v3 import make_tracker_router
 app.include_router(
     make_tracker_router(lambda: STOCK_CACHE, lambda: SPY_CACHE, V2_UNIVERSE)
 )
+# ============================================================
+# DAILY OVERNIGHT V1 - independent research-only Telegram report
+# C2/V4/V5 and existing weekly routes are not modified.
+# External scheduler calls POST /overnight/run with X-Automation-Key.
+# ============================================================
+from zoneinfo import ZoneInfo as _overnight_ZoneInfo
+from datetime import timezone as _overnight_timezone
+
+_OVERNIGHT_NY = _overnight_ZoneInfo('America/New_York')
+_OVERNIGHT_SYMBOLS = ('AAPL', 'MSFT', 'NVDA', 'AMZN', 'META', 'AMD')
+_OVERNIGHT_STATE = {'running': False, 'last_result': None, 'last_error': None}
+_OVERNIGHT_LOCK = asyncio.Lock()
+
+
+def _overnight_clock():
+    return datetime.now(_overnight_timezone.utc).astimezone(_OVERNIGHT_NY)
+
+
+def _overnight_db(op, day, payload=None):
+    """Persist delivery across Render restarts; do not report sent before Telegram confirms."""
+    with _v5_pg.connect(os.environ['DATABASE_URL'], connect_timeout=10, sslmode='require') as conn:
+        with conn.cursor() as cur:
+            cur.execute('''CREATE TABLE IF NOT EXISTS overnight_delivery (
+                trade_day TEXT PRIMARY KEY, status TEXT NOT NULL,
+                payload JSONB, updated_at TIMESTAMPTZ DEFAULT NOW())''')
+            if op == 'read':
+                cur.execute('SELECT status,payload FROM overnight_delivery WHERE trade_day=%s', (day,))
+                return cur.fetchone()
+            if op == 'sent':
+                cur.execute('''INSERT INTO overnight_delivery(trade_day,status,payload) VALUES (%s,'SENT',%s)
+                    ON CONFLICT(trade_day) DO UPDATE SET status='SENT',payload=EXCLUDED.payload,
+                    updated_at=NOW()''', (day, _v5_json(payload)))
+            if op == 'claim':
+                # Concurrent scheduler calls serialized by a Postgres advisory transaction lock.
+                cur.execute('SELECT pg_advisory_xact_lock(hashtext(%s))', ('overnight_'+day,))
+                cur.execute('SELECT status,updated_at FROM overnight_delivery WHERE trade_day=%s FOR UPDATE', (day,))
+                row = cur.fetchone()
+                if row and (row[0] == 'SENT' or (row[0] == 'RUNNING' and (datetime.now(_overnight_timezone.utc)-row[1]).total_seconds() < 300)):
+                    return False
+                cur.execute('''INSERT INTO overnight_delivery(trade_day,status) VALUES (%s,'RUNNING')
+                    ON CONFLICT(trade_day) DO UPDATE SET status='RUNNING',updated_at=NOW()''', (day,))
+                return True
+            if op == 'fail':
+                cur.execute('''UPDATE overnight_delivery SET status='FAILED',updated_at=NOW() WHERE trade_day=%s AND status!='SENT' ''', (day,))
+
+
+async def _overnight_bars(symbol):
+    params = {'symbol': symbol, 'interval': '5min', 'outputsize': 80, 'apikey': TWELVE_DATA_API_KEY}
+    async with httpx.AsyncClient(timeout=12) as client:
+        response = await client.get('https://api.twelvedata.com/time_series', params=params)
+        response.raise_for_status()
+        data = response.json()
+    if not isinstance(data.get('values'), list) or len(data['values']) < 20:
+        raise RuntimeError(f'{symbol}: 5min data unavailable or subscription insufficient')
+    bars = sorted(data['values'], key=lambda x: x['datetime'])
+    today = _overnight_clock().date().isoformat()
+    bars = [x for x in bars if x['datetime'][:10] == today]
+    if len(bars) < 20:
+        raise RuntimeError(f'{symbol}: insufficient current-session bars')
+    latest = bars[-1]['datetime']
+    # Reject delayed / stale market data. Date/time from provider is exchange-local.
+    latest_dt = datetime.fromisoformat(latest).replace(tzinfo=_OVERNIGHT_NY)
+    lag = (_overnight_clock() - latest_dt).total_seconds() / 60
+    if lag < -6 or lag > 16:
+        raise RuntimeError(f'{symbol}: stale 5min bar ({round(lag)} min)')
+    return bars
+
+
+def _overnight_features(symbol, bars, spy_change, qqq_change):
+    op = float(bars[0]['open']); px = float(bars[-1]['close'])
+    volumes = [float(x.get('volume') or 0) for x in bars]
+    closes = [float(x['close']) for x in bars]
+    highs = [float(x['high']) for x in bars]
+    lows = [float(x['low']) for x in bars]
+    total_vol = sum(volumes)
+    vwap = sum(((highs[i]+lows[i]+closes[i])/3)*volumes[i] for i in range(len(bars))) / total_vol if total_vol else px
+    intraday = 100*(px/op-1)
+    last30 = 100*(px/closes[-7]-1) if len(closes)>=7 else 0
+    rel = intraday - (spy_change+qqq_change)/2
+    range_position = (px-min(lows))/(max(highs)-min(lows)) if max(highs)>min(lows) else 0.5
+    # Three separate research models, not the C2 scoring model.
+    closing_momentum = last30 > 0.12 and px > vwap and range_position > .7
+    pullback_recovery = min(lows) < op*.992 and px > vwap and last30 > .15
+    relative_strength = rel > .35 and px > vwap and last30 > 0
+    return {'symbol':symbol,'price':round(px,2),'change_pct':round(intraday,2),
+            'last30_pct':round(last30,2),'relative_pct':round(rel,2),
+            'vwap':round(vwap,2),'models':[name for name,flag in (
+                ('CLOSING_MOMENTUM',closing_momentum),('PULLBACK_RECOVERY',pullback_recovery),
+                ('RELATIVE_STRENGTH',relative_strength)) if flag]}
+
+
+async def _overnight_worker(day):
+    _OVERNIGHT_STATE['running'] = True
+    _OVERNIGHT_STATE['last_error'] = None
+    try:
+        # Limit requests and reject partial market data instead of sending misleading picks.
+        bars_by_symbol = {}
+        for symbol in ('SPY','QQQ') + _OVERNIGHT_SYMBOLS:
+            bars_by_symbol[symbol] = await _overnight_bars(symbol)
+            await asyncio.sleep(8.2)  # Twelve Data free-plan credit pacing
+        def day_change(symbol):
+            bars = bars_by_symbol[symbol]
+            return 100*(float(bars[-1]['close'])/float(bars[0]['open'])-1)
+        spy, qqq = day_change('SPY'), day_change('QQQ')
+        rows = [_overnight_features(s,bars_by_symbol[s],spy,qqq) for s in _OVERNIGHT_SYMBOLS]
+        picks = sorted([r for r in rows if r['models']],
+                       key=lambda r:(len(r['models']),r['relative_pct']), reverse=True)[:4]
+        now = _overnight_clock()
+        if now.date().isoformat()!=day or now.hour!=15 or now.minute>14:
+            raise RuntimeError('Delivery deadline missed; stale signals NOT sent')
+        message = (f'📊 DAILY OVERNIGHT V1 | PAPER ONLY\n{day} 15:{now.minute:02d} New York\n'
+                   'Alis: bugun kapanistan once | Planli satis: sonraki islem gunu 15:15–15:55 NY\n'
+                   'Veri: 5 dakikalik mum; fiyatlar anlik emir fiyati degildir.\n'
+                   f'SPY {spy:+.2f}% | QQQ {qqq:+.2f}%\n\n')
+        if picks:
+            for r in picks:
+                message += (f"{r['symbol']} | ${r['price']:.2f} | Gun {r['change_pct']:+.2f}% | "
+                            f"Son30dk {r['last30_pct']:+.2f}% | Goreli {r['relative_pct']:+.2f}%\n"
+                            f"Modeller: {', '.join(r['models'])}\n\n")
+        else:
+            message += 'Bugun uygun sinyal YOK. Islem yapmama secenegi korunur.\n'
+        message += '\nBu rapor arastirma sinyalidir; otomatik emir yoktur. Gece gap riski vardir.'
+        async with httpx.AsyncClient(timeout=12) as client:
+            resp = await client.post(f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage',
+                                     json={'chat_id':TELEGRAM_CHAT_ID,'text':message})
+            resp.raise_for_status()
+            ack = resp.json()
+            if not ack.get('ok'):
+                raise RuntimeError('Telegram did not acknowledge message')
+        result = {'status':'sent','day':day,'telegram_message_id':ack['result']['message_id'],
+                  'sent_at_ny':_overnight_clock().isoformat(),'picks':picks,'universe':list(_OVERNIGHT_SYMBOLS)}
+        await asyncio.to_thread(_overnight_db,'sent',day,result)
+        _OVERNIGHT_STATE['last_result'] = result
+    except Exception as exc:
+        _OVERNIGHT_STATE['last_error'] = str(exc).replace(TWELVE_DATA_API_KEY,'[REDACTED]') if TWELVE_DATA_API_KEY else str(exc)
+        try:
+            await asyncio.to_thread(_overnight_db,'fail',day)
+        except Exception:
+            pass
+    finally:
+        _OVERNIGHT_STATE['running'] = False
+
+
+@app.post('/overnight/run')
+async def overnight_run(request: Request, background_tasks: BackgroundTasks):
+    key = os.getenv('OVERNIGHT_CRON_KEY','')
+    if not key or request.headers.get('X-Automation-Key','') != key:
+        raise HTTPException(status_code=401, detail='Unauthorized')
+    now = _overnight_clock()
+    if now.weekday()>=5 or now.hour!=15 or not (0<=now.minute<=12):
+        return {'status':'outside_window','now_ny':now.isoformat(),'required':'weekday 15:00–15:12 NY'}
+    if not TWELVE_DATA_API_KEY or not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        raise HTTPException(status_code=503, detail='Required API/Telegram configuration missing')
+    async with _OVERNIGHT_LOCK:
+        if _OVERNIGHT_STATE['running']:
+            return {'status':'already_running'}
+        day = now.date().isoformat()
+        try:
+            claimed = await asyncio.to_thread(_overnight_db,'claim',day)
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail='Delivery database unavailable') from exc
+        if not claimed:
+            return {'status':'already_sent_or_running','day':day}
+        _OVERNIGHT_STATE['running'] = True
+        background_tasks.add_task(_overnight_worker,day)
+        return {'status':'started','day':day,'mode':'RESEARCH_PAPER_ONLY'}
+
+
+@app.get('/overnight/status')
+async def overnight_status():
+    now = _overnight_clock()
+    result = {**_OVERNIGHT_STATE,'now_ny':now.isoformat(),'mode':'RESEARCH_PAPER_ONLY'}
+    try:
+        saved = await asyncio.to_thread(_overnight_db,'read',now.date().isoformat())
+        result['database_status'] = saved[0] if saved else 'NOT_STARTED'
+        if saved and saved[0]=='SENT':
+            result['last_result'] = saved[1]
+    except Exception:
+        result['database_status']='UNAVAILABLE'
+    return result
