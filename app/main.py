@@ -10356,3 +10356,195 @@ async def v6_weekly_filter_backtest(
             "models": {key: summarize(value) for key, value in records.items()},
             "skipped_entries": skipped_weeks,
             "limitations": "Weekly close exit only; no intraday stop/target execution, slippage, dividends, survivorship-bias adjustment or corporate-action audit. Active-week compounding is not a deployable portfolio equity curve. No SPY gate applied. Historical research is not an independent out-of-sample validation."}
+
+
+# ============================================================
+# V6.1 WEEKLY FILTER / STOP / SPY RESEARCH
+# Separate endpoint; production alerts and orders are untouched.
+# ============================================================
+@app.get("/v61/weekly-comparison")
+async def v61_weekly_comparison(
+    start_date: str = "2024-01-01",
+    end_date: str = "2026-09-30",
+    oos_start_date: str = "2026-01-01",
+    round_trip_cost_pct: float = 0.15,
+    spy_gate: bool = False,
+    simulate_atr_exits: bool = True,
+):
+    from datetime import date as _v61_date
+    try:
+        start = _v61_date.fromisoformat(start_date)
+        end = _v61_date.fromisoformat(end_date)
+        oos_start = _v61_date.fromisoformat(oos_start_date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Dates must be YYYY-MM-DD")
+    if not (start <= oos_start <= end) or not (0 <= round_trip_cost_pct <= 5):
+        raise HTTPException(status_code=400, detail="Invalid date range or cost")
+    universe = list(V2_UNIVERSE)
+    missing = [sym for sym in universe if sym not in STOCK_CACHE]
+    if missing:
+        return {"status": "DATA_UNAVAILABLE", "missing_symbols": missing}
+    series = {}
+    for sym in universe:
+        bars = STOCK_CACHE[sym].get("values", [])
+        if len(bars) < 90:
+            return {"status": "DATA_UNAVAILABLE", "symbol": sym, "reason": "insufficient bars"}
+        series[sym] = {str(b["datetime"])[:10]: b for b in bars}
+    common = sorted(set.intersection(*(set(b) for b in series.values())))
+    if len(common) < 90:
+        return {"status": "DATA_UNAVAILABLE", "reason": "insufficient common dates"}
+    week_ends = []
+    for i, d in enumerate(common):
+        next_d = common[i + 1] if i + 1 < len(common) else None
+        if next_d is None or _v61_date.fromisoformat(d).isocalendar()[:2] != _v61_date.fromisoformat(next_d).isocalendar()[:2]:
+            week_ends.append(i)
+    spy = None
+    if spy_gate:
+        if SPY_CACHE is None:
+            return {"status": "DATA_UNAVAILABLE", "reason": "SPY history not cached"}
+        spy = {str(b["datetime"])[:10]: b for b in SPY_CACHE}
+    snapshots = {}
+    for sym in universe:
+        bars = [series[sym][d] for d in sorted(series[sym])]
+        index = {str(b["datetime"])[:10]: i for i, b in enumerate(bars)}
+        snap = {}
+        for idx in week_ends[:-1]:
+            d = common[idx]
+            j = index.get(d, -1)
+            if j < 60:
+                continue
+            try:
+                snap[d] = _weekly_score_snapshot(bars[:j + 1])
+            except (ValueError, ZeroDivisionError, KeyError, TypeError):
+                continue
+        snapshots[sym] = snap
+    models = {
+        "V5_BASELINE": None,
+        "V6_A_RSI50_70_MOM5_20": (50, 70, 5, 20),
+        "V6_B_RSI50_65_MOM5_20": (50, 65, 5, 20),
+        "V6_C_RSI55_70_MOM5_15": (55, 70, 5, 15),
+    }
+    records = {name: [] for name in models}
+    all_weeks = []
+    skipped = 0
+    spy_blocked = 0
+    for k in range(len(week_ends) - 1):
+        idx, nxt = week_ends[k], week_ends[k + 1]
+        d = common[idx]
+        if not (start <= _v61_date.fromisoformat(d) <= end):
+            continue
+        entry_date, exit_date = common[idx + 1], common[nxt]
+        all_weeks.append(d)
+        if spy_gate:
+            spy_history = [spy[x] for x in common[:idx + 1] if x in spy]
+            if len(spy_history) < 51:
+                spy_blocked += 1
+                continue
+            spy_closes = [float(b["close"]) for b in spy_history]
+            if not (spy_closes[-1] > calculate_ema(spy_closes, 50)):
+                spy_blocked += 1
+                continue
+        candidates = [(sym, snapshots[sym][d]) for sym in universe
+                      if d in snapshots[sym] and snapshots[sym][d]["score"] >= 75]
+        candidates.sort(key=lambda x: (x[1]["score"], x[1]["momentum20"], x[1]["macd_histogram"]), reverse=True)
+        for name, limits in models.items():
+            if limits is None:
+                picks = candidates[:5]
+            else:
+                lo, hi, mlo, mhi = limits
+                picks = [(sym, item) for sym, item in candidates
+                         if lo <= item["rsi14"] <= hi
+                         and mlo <= item["momentum20"] <= mhi
+                         and item["price"] > item["ema20"] > item["ema50"]][:5]
+            for sym, item in picks:
+                try:
+                    entry = float(series[sym][entry_date]["open"])
+                    if entry <= 0:
+                        skipped += 1
+                        continue
+                    exit_px = float(series[sym][exit_date]["close"])
+                    actual_exit_date = exit_date
+                    exit_reason = "WEEKLY_CLOSE"
+                    if simulate_atr_exits:
+                        # Stop/target are derived from the actual next-day opening fill,
+                        # using only ATR known on the signal day.
+                        atr = float(item["atr14"])
+                        stop = entry - 1.5 * atr
+                        target = entry + 2.0 * atr
+                        for day in common[idx + 1:nxt + 1]:
+                            bar = series[sym][day]
+                            op, hi, low = (float(bar[x]) for x in ("open", "high", "low"))
+                            # Gap handling: opening print may be worse than stop.
+                            if op <= stop:
+                                exit_px, exit_reason, actual_exit_date = op, "STOP_GAP", day
+                                break
+                            if op >= target:
+                                exit_px, exit_reason, actual_exit_date = op, "TARGET_GAP", day
+                                break
+                            # Same-bar stop and target: conservative stop-first assumption.
+                            if low <= stop:
+                                exit_px, exit_reason, actual_exit_date = stop, "STOP", day
+                                break
+                            if hi >= target:
+                                exit_px, exit_reason, actual_exit_date = target, "TARGET", day
+                                break
+                    ret = (exit_px / entry - 1) * 100 - round_trip_cost_pct
+                    records[name].append({
+                        "week": d, "symbol": sym, "entry_date": entry_date,
+                        "exit_date": actual_exit_date, "return_pct": round(ret, 4),
+                        "exit_reason": exit_reason, "rsi": item["rsi14"],
+                        "momentum20_pct": item["momentum20"],
+                    })
+                except (KeyError, TypeError, ValueError, ZeroDivisionError):
+                    skipped += 1
+
+    def summarize(rows, weeks):
+        weekly = {}
+        for row in rows:
+            weekly.setdefault(row["week"], []).append(row["return_pct"])
+        # Fixed capital model: up to five equally sized 20% slots.
+        # Empty slots/weeks stay in cash; no leverage or reinvestment of unused slots.
+        eq, peak, dd = 1.0, 1.0, 0.0
+        weekly_returns = []
+        for d in weeks:
+            week_ret = sum(weekly.get(d, [])) / 5.0
+            weekly_returns.append(week_ret)
+            eq *= 1 + week_ret / 100
+            peak = max(peak, eq)
+            dd = min(dd, (eq / peak - 1) * 100)
+        vals = [r["return_pct"] for r in rows]
+        return {
+            "trade_count": len(rows),
+            "weeks_with_picks": len(weekly),
+            "avg_trade_return_pct": round(statistics.mean(vals), 3) if vals else None,
+            "win_rate_pct": round(100 * sum(v > 0 for v in vals) / len(vals), 2) if vals else None,
+            "fixed_slot_compounded_return_pct": round((eq - 1) * 100, 2),
+            "fixed_slot_max_drawdown_pct": round(dd, 2),
+            "stop_exits": sum(r["exit_reason"].startswith("STOP") for r in rows),
+            "target_exits": sum(r["exit_reason"].startswith("TARGET") for r in rows),
+            "recent_trades": rows[-8:],
+        }
+    periods = {
+        "IN_SAMPLE": [d for d in all_weeks if _v61_date.fromisoformat(d) < oos_start],
+        "HOLDOUT": [d for d in all_weeks if _v61_date.fromisoformat(d) >= oos_start],
+    }
+    results = {}
+    for period, weeks in periods.items():
+        allowed = set(weeks)
+        results[period] = {
+            name: summarize([r for r in records[name] if r["week"] in allowed], weeks)
+            for name in models
+        }
+    return {
+        "status": "OK", "mode": "RESEARCH_ONLY", "live_strategy_changed": False,
+        "date_range": [start_date, end_date], "holdout_start": oos_start_date,
+        "universe_count": len(universe), "common_daily_bars": len(common),
+        "round_trip_cost_pct": round_trip_cost_pct,
+        "spy_gate": spy_gate, "spy_blocked_weeks": spy_blocked,
+        "simulate_atr_exits": simulate_atr_exits,
+        "entry": "next common trading day open",
+        "exit": "daily OHLC ATR stop/target or following weekly close",
+        "capital_model": "five fixed 20-percent slots; unfilled slots held as cash",
+        "periods": results, "skipped_entries": skipped,
+        "limitations": "Holdout is a chronological split but not independent validation if its dates informed filter selection. Same-day stop and target assumes stop first; no intraday sequence. Cost fixed, no additional slippage, no dividend/corporate-action or survivorship audit. Fixed-slot return is a simplified model, not an executable portfolio.",
+    }
