@@ -10183,3 +10183,35 @@ async def overnight_status():
     except Exception:
         result['database_status']='UNAVAILABLE'
     return result
+
+
+# Telegram-only diagnostic: no market scan, no trading signal, no orders.
+@app.post('/overnight/test-telegram')
+async def overnight_test_telegram(request: Request):
+    import secrets as _overnight_secrets
+    key = os.getenv('OVERNIGHT_CRON_KEY', '')
+    supplied = request.headers.get('X-Automation-Key', '')
+    if not key or not _overnight_secrets.compare_digest(supplied, key):
+        raise HTTPException(status_code=401, detail='Unauthorized')
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        raise HTTPException(status_code=503, detail='Telegram settings missing')
+    now = _overnight_clock()
+    message = ('🧪 DAILY OVERNIGHT V1 — TELEGRAM BAGLANTI TESTI\n'
+               f'New York: {now.strftime("%Y-%m-%d %H:%M:%S %Z")}\n'
+               'Bu bir test mesajidir. ALIS/SATIS SINYALI DEGILDIR.\n'
+               'Gercek emir gonderilmedi.')
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage',
+                json={'chat_id': TELEGRAM_CHAT_ID, 'text': message})
+            resp.raise_for_status()
+            payload = resp.json()
+            if not payload.get('ok'):
+                raise RuntimeError('Telegram did not confirm delivery')
+    except Exception as exc:
+        # Never leak the Telegram token in HTTP errors.
+        raise HTTPException(status_code=502, detail='Telegram test failed; check Render logs') from exc
+    return {'status': 'sent', 'mode': 'TEST_ONLY',
+            'telegram_message_id': payload['result']['message_id'],
+            'sent_at_ny': now.isoformat()}
