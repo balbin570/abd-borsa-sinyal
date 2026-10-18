@@ -1405,6 +1405,16 @@ WEEKLY_STATE = {
 }
 
 
+def _weekly_v6b_eligible(item):
+    """V6-B weekly selection; no SPY gate (research comparison winner)."""
+    return (
+        item.get("score", 0) >= 75
+        and 50 <= item.get("rsi14", -1) <= 65
+        and 5 <= item.get("momentum20", -1) <= 20
+        and item.get("price", 0) > item.get("ema20", float("inf")) > item.get("ema50", float("inf"))
+    )
+
+
 async def _run_weekly_scan():
     WEEKLY_STATE["running"] = True
     WEEKLY_STATE["last_error"] = None
@@ -1433,8 +1443,8 @@ async def _run_weekly_scan():
                 await asyncio.sleep(61)
 
         sort_key = lambda x: (x["score"], x["momentum20"], x["macd_histogram"])
-        current_candidates = sorted([x for x in current_rows if x["score"] >= 75], key=sort_key, reverse=True)
-        previous_candidates = sorted([x for x in previous_rows if x["score"] >= 75], key=sort_key, reverse=True)
+        current_candidates = sorted([x for x in current_rows if _weekly_v6b_eligible(x)], key=sort_key, reverse=True)
+        previous_candidates = sorted([x for x in previous_rows if _weekly_v6b_eligible(x)], key=sort_key, reverse=True)
         picks = current_candidates[:5]
         previous_top5 = previous_candidates[:5]
         previous_symbols = {x["symbol"] for x in previous_top5}
@@ -1449,8 +1459,7 @@ async def _run_weekly_scan():
             cur = current_by_symbol.get(old["symbol"])
             if not cur:
                 continue
-            trend_ok = cur["price"] > cur["ema20"] and cur["ema20"] > cur["ema50"]
-            if cur["score"] >= 65 and trend_ok:
+            if _weekly_v6b_eligible(cur):
                 if old["symbol"] not in {x["symbol"] for x in picks}:
                     continued_outside_top5.append({**cur, "action": "DEVAM"})
             else:
@@ -1494,7 +1503,7 @@ async def _run_weekly_scan():
             }
 
         if picks:
-            message = "📊 HAFTALIK ABD HISSE PLANI\n"
+            message = "📊 HAFTALIK ABD HISSE PLANI — V6-B\n"
             message += "Teknik hedefler garanti degildir; ATR tabanli izleme seviyeleridir.\n\n"
             for rank, item in enumerate(picks, start=1):
                 message += (
@@ -1506,7 +1515,7 @@ async def _run_weekly_scan():
                     f"RSI: {item['rsi14']} | Momentum 20G: %{item['momentum20']}\n\n"
                 )
         else:
-            message = "📊 HAFTALIK ABD HISSE PLANI\n\nBu hafta 75+ puan alan yeni Top-5 adayi yok.\n\n"
+            message = "📊 HAFTALIK ABD HISSE PLANI — V6-B\n\nBu hafta V6-B kriterlerini saglayan aday yok.\n\n"
 
         if continued_outside_top5:
             message += "↔️ ONCEKI HAFTADAN DEVAM (Top-5 disinda ama trend korunuyor)\n"
@@ -1553,9 +1562,11 @@ async def _run_weekly_scan():
 
         WEEKLY_STATE["last_result"] = {
             "status": "sent",
-            "mode": "weekly_portfolio",
+            "mode": "weekly_portfolio_v6b",
+            "strategy": "V6_B_RSI50_65_MOM5_20_NO_SPY",
             "universe_count": len(V2_UNIVERSE),
             "strong_candidate_count": len(current_candidates),
+            "filter": "score>=75; RSI14 50..65; momentum20 5..20; price>EMA20>EMA50; SPY off",
             "sent_count": len(picks),
             "top5": picks,
             "weekly_performance": performance,
@@ -1564,7 +1575,7 @@ async def _run_weekly_scan():
             "exits": exits,
             "target_method": "price + 2.0 x ATR14",
             "stop_method": "price - 1.5 x ATR14",
-            "continue_rule": "previous Top-5; current score >=65 and price>EMA20>EMA50",
+            "continue_rule": "previous V6-B Top-5; current V6-B eligibility",
             "error_count": len(errors),
             "errors": errors,
         }
