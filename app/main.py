@@ -10023,9 +10023,13 @@ from zoneinfo import ZoneInfo as _overnight_ZoneInfo
 from datetime import timezone as _overnight_timezone
 
 _OVERNIGHT_NY = _overnight_ZoneInfo('America/New_York')
-_OVERNIGHT_SYMBOLS = ('AAPL', 'MSFT', 'NVDA', 'AMZN', 'META', 'AMD')
+_OVERNIGHT_SYMBOLS = tuple(EXPANDED_UNIVERSE)  # Up to 250 symbols; pre-screen only
 _OVERNIGHT_STATE = {'running': False, 'last_result': None, 'last_error': None}
 _OVERNIGHT_LOCK = asyncio.Lock()
+_OVERNIGHT_PRE_STATE = {'running': False, 'last_result': None, 'last_error': None}
+_OVERNIGHT_PRE_LOCK = asyncio.Lock()
+_OVERNIGHT_FINALISTS = 6  # 6 candidates + SPY + QQQ = 8 five-minute requests
+
 
 
 def _overnight_clock():
@@ -10105,26 +10109,124 @@ def _overnight_features(symbol, bars, spy_change, qqq_change):
                 ('RELATIVE_STRENGTH',relative_strength)) if flag]}
 
 
+def _overnight_pre_db(op, day, payload=None):
+    # Persist a complete daily pre-screen; never use a partial scan.
+    with _v5_pg.connect(os.environ['DATABASE_URL'], connect_timeout=10, sslmode='require') as conn:
+        with conn.cursor() as cur:
+            cur.execute('''CREATE TABLE IF NOT EXISTS overnight_prescreen (
+                trade_day TEXT PRIMARY KEY, payload JSONB NOT NULL,
+                updated_at TIMESTAMPTZ DEFAULT NOW())''')
+            if op == 'read':
+                cur.execute('SELECT payload FROM overnight_prescreen WHERE trade_day=%s', (day,))
+                row = cur.fetchone()
+                return row[0] if row else None
+            if op == 'save':
+                cur.execute('''INSERT INTO overnight_prescreen(trade_day,payload) VALUES (%s,%s)
+                    ON CONFLICT(trade_day) DO UPDATE SET payload=EXCLUDED.payload,updated_at=NOW()''',
+                    (day, _v5_json(payload)))
+
+
+async def _overnight_prescreen_worker(day):
+    _OVERNIGHT_PRE_STATE['running'] = True
+    _OVERNIGHT_PRE_STATE['last_error'] = None
+    try:
+        ranked, errors = [], []
+        # Twelve Data Basic: no more than ~7 credits/minute; daily credit budget
+        # shared with other services. Fail closed if the universe is incomplete.
+        for symbol in _OVERNIGHT_SYMBOLS:
+            try:
+                params = {'symbol': symbol, 'interval': '1day', 'outputsize': 75,
+                          'apikey': TWELVE_DATA_API_KEY}
+                async with httpx.AsyncClient(timeout=20) as client:
+                    response = await client.get('https://api.twelvedata.com/time_series', params=params)
+                    response.raise_for_status()
+                    data = response.json()
+                values = sorted(data.get('values', []), key=lambda x: x['datetime'])
+                if len(values) < 51:
+                    raise RuntimeError('Insufficient daily bars / API credits')
+                snap = _weekly_score_snapshot(values)
+                ranked.append({'symbol': symbol, 'score': snap['score'],
+                               'momentum20': snap['momentum20'],
+                               'rsi14': snap['rsi14']})
+            except Exception as exc:
+                errors.append({'symbol': symbol, 'error': str(exc)[:160]})
+            await asyncio.sleep(8.3)
+        if errors or len(ranked) != len(_OVERNIGHT_SYMBOLS):
+            raise RuntimeError(f'Pre-screen incomplete: {len(ranked)}/{len(_OVERNIGHT_SYMBOLS)}; errors={errors[:3]}')
+        ranked.sort(key=lambda r: (r['score'], r['momentum20']), reverse=True)
+        result = {'day': day, 'universe_count': len(_OVERNIGHT_SYMBOLS),
+                  'scanned_count': len(ranked), 'shortlist': [r['symbol'] for r in ranked[:_OVERNIGHT_FINALISTS]],
+                  'method': 'daily technical pre-screen; final picks use fresh 5min bars',
+                  'completed_at_ny': _overnight_clock().isoformat()}
+        await asyncio.to_thread(_overnight_pre_db, 'save', day, result)
+        _OVERNIGHT_PRE_STATE['last_result'] = result
+    except Exception as exc:
+        _OVERNIGHT_PRE_STATE['last_error'] = str(exc).replace(TWELVE_DATA_API_KEY, '[REDACTED]') if TWELVE_DATA_API_KEY else str(exc)
+    finally:
+        _OVERNIGHT_PRE_STATE['running'] = False
+
+
+@app.post('/overnight/prescreen/run')
+async def overnight_prescreen_run(request: Request, background_tasks: BackgroundTasks):
+    import secrets
+    key = os.getenv('OVERNIGHT_CRON_KEY', '')
+    if not key or not secrets.compare_digest(request.headers.get('X-Automation-Key', ''), key):
+        raise HTTPException(status_code=401, detail='Unauthorized')
+    now = _overnight_clock()
+    if now.weekday() >= 5 or now.hour != 13 or not 40 <= now.minute <= 55:
+        return {'status': 'outside_window', 'now_ny': now.isoformat(),
+                'required': 'weekday 13:40–13:55 NY'}
+    if not TWELVE_DATA_API_KEY or not os.getenv('DATABASE_URL'):
+        raise HTTPException(status_code=503, detail='API/database settings missing')
+    async with _OVERNIGHT_PRE_LOCK:
+        if _OVERNIGHT_PRE_STATE['running']:
+            return {'status': 'already_running'}
+        day = now.date().isoformat()
+        existing = await asyncio.to_thread(_overnight_pre_db, 'read', day)
+        if existing:
+            return {'status': 'already_completed', 'day': day}
+        _OVERNIGHT_PRE_STATE['running'] = True
+        background_tasks.add_task(_overnight_prescreen_worker, day)
+        return {'status': 'started', 'day': day, 'universe_count': len(_OVERNIGHT_SYMBOLS)}
+
+
+@app.get('/overnight/prescreen/status')
+async def overnight_prescreen_status():
+    day = _overnight_clock().date().isoformat()
+    result = {**_OVERNIGHT_PRE_STATE, 'now_ny': _overnight_clock().isoformat()}
+    try:
+        result['saved_result'] = await asyncio.to_thread(_overnight_pre_db, 'read', day)
+    except Exception:
+        result['saved_result'] = None
+    return result
+
+
 async def _overnight_worker(day):
     _OVERNIGHT_STATE['running'] = True
     _OVERNIGHT_STATE['last_error'] = None
     try:
-        # Limit requests and reject partial market data instead of sending misleading picks.
+        pre = await asyncio.to_thread(_overnight_pre_db, 'read', day)
+        if not pre or pre.get('scanned_count') != len(_OVERNIGHT_SYMBOLS):
+            raise RuntimeError('Complete 250-symbol pre-screen missing; no stale/partial recommendations sent')
+        finalists = tuple(pre.get('shortlist', []))
+        if len(finalists) != _OVERNIGHT_FINALISTS:
+            raise RuntimeError('Pre-screen shortlist incomplete')
         bars_by_symbol = {}
-        for symbol in ('SPY','QQQ') + _OVERNIGHT_SYMBOLS:
+        for symbol in ('SPY', 'QQQ') + finalists:
             bars_by_symbol[symbol] = await _overnight_bars(symbol)
-            await asyncio.sleep(8.2)  # Twelve Data free-plan credit pacing
+            await asyncio.sleep(8.2)
         def day_change(symbol):
             bars = bars_by_symbol[symbol]
             return 100*(float(bars[-1]['close'])/float(bars[0]['open'])-1)
         spy, qqq = day_change('SPY'), day_change('QQQ')
-        rows = [_overnight_features(s,bars_by_symbol[s],spy,qqq) for s in _OVERNIGHT_SYMBOLS]
+        rows = [_overnight_features(s, bars_by_symbol[s], spy, qqq) for s in finalists]
         picks = sorted([r for r in rows if r['models']],
-                       key=lambda r:(len(r['models']),r['relative_pct']), reverse=True)[:4]
+                       key=lambda r: (len(r['models']), r['relative_pct']), reverse=True)[:2]
         now = _overnight_clock()
-        if now.date().isoformat()!=day or now.hour!=15 or now.minute>14:
+        if now.date().isoformat() != day or now.hour != 15 or now.minute > 14:
             raise RuntimeError('Delivery deadline missed; stale signals NOT sent')
-        message = (f'📊 DAILY OVERNIGHT V1 | PAPER ONLY\n{day} 15:{now.minute:02d} New York\n'
+        message = (f'📊 DAILY OVERNIGHT V2 | PAPER ONLY\n{day} 15:{now.minute:02d} New York\n'
+                   f'On tarama: {pre["scanned_count"]} hisse | Son kontrol: {len(finalists)} aday\n'
                    'Alis: bugun kapanistan once | Planli satis: sonraki islem gunu 15:15–15:55 NY\n'
                    'Veri: 5 dakikalik mum; fiyatlar anlik emir fiyati degildir.\n'
                    f'SPY {spy:+.2f}% | QQQ {qqq:+.2f}%\n\n')
@@ -10138,19 +10240,21 @@ async def _overnight_worker(day):
         message += '\nBu rapor arastirma sinyalidir; otomatik emir yoktur. Gece gap riski vardir.'
         async with httpx.AsyncClient(timeout=12) as client:
             resp = await client.post(f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage',
-                                     json={'chat_id':TELEGRAM_CHAT_ID,'text':message})
+                                     json={'chat_id': TELEGRAM_CHAT_ID, 'text': message})
             resp.raise_for_status()
             ack = resp.json()
             if not ack.get('ok'):
                 raise RuntimeError('Telegram did not acknowledge message')
-        result = {'status':'sent','day':day,'telegram_message_id':ack['result']['message_id'],
-                  'sent_at_ny':_overnight_clock().isoformat(),'picks':picks,'universe':list(_OVERNIGHT_SYMBOLS)}
-        await asyncio.to_thread(_overnight_db,'sent',day,result)
+        result = {'status': 'sent', 'day': day, 'telegram_message_id': ack['result']['message_id'],
+                  'sent_at_ny': _overnight_clock().isoformat(), 'picks': picks,
+                  'universe_count': pre['universe_count'], 'scanned_count': pre['scanned_count'],
+                  'finalists': list(finalists)}
+        await asyncio.to_thread(_overnight_db, 'sent', day, result)
         _OVERNIGHT_STATE['last_result'] = result
     except Exception as exc:
-        _OVERNIGHT_STATE['last_error'] = str(exc).replace(TWELVE_DATA_API_KEY,'[REDACTED]') if TWELVE_DATA_API_KEY else str(exc)
+        _OVERNIGHT_STATE['last_error'] = str(exc).replace(TWELVE_DATA_API_KEY, '[REDACTED]') if TWELVE_DATA_API_KEY else str(exc)
         try:
-            await asyncio.to_thread(_overnight_db,'fail',day)
+            await asyncio.to_thread(_overnight_db, 'fail', day)
         except Exception:
             pass
     finally:
