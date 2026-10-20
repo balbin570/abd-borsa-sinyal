@@ -1427,8 +1427,8 @@ async def _run_weekly_scan():
         errors = []
         batch_size = 7
 
-        for group_start in range(0, len(V2_UNIVERSE), batch_size):
-            group = V2_UNIVERSE[group_start:group_start + batch_size]
+        for group_start in range(0, len(EXPANDED_UNIVERSE), batch_size):
+            group = EXPANDED_UNIVERSE[group_start:group_start + batch_size]
             for symbol in group:
                 try:
                     current, previous = await _weekly_current_and_previous(symbol)
@@ -1439,7 +1439,7 @@ async def _run_weekly_scan():
                         previous_rows.append(previous)
                 except Exception as exc:
                     errors.append({"symbol": symbol, "error": str(exc)})
-            if group_start + batch_size < len(V2_UNIVERSE):
+            if group_start + batch_size < len(EXPANDED_UNIVERSE):
                 await asyncio.sleep(61)
 
         sort_key = lambda x: (x["score"], x["momentum20"], x["macd_histogram"])
@@ -1472,8 +1472,8 @@ async def _run_weekly_scan():
         current_dates = {x["data_date"] for x in current_rows}
         complete_universe = (
             not errors
-            and len(current_rows) == len(V2_UNIVERSE)
-            and len(previous_rows) == len(V2_UNIVERSE)
+            and len(current_rows) == len(EXPANDED_UNIVERSE)
+            and len(previous_rows) == len(EXPANDED_UNIVERSE)
             and len(previous_dates) == 1
             and len(current_dates) == 1
         )
@@ -1564,7 +1564,7 @@ async def _run_weekly_scan():
             "status": "sent",
             "mode": "weekly_portfolio_v6b",
             "strategy": "V6_B_RSI50_65_MOM5_20_NO_SPY",
-            "universe_count": len(V2_UNIVERSE),
+            "universe_count": len(EXPANDED_UNIVERSE),
             "strong_candidate_count": len(current_candidates),
             "filter": "score>=75; RSI14 50..65; momentum20 5..20; price>EMA20>EMA50; SPY off",
             "sent_count": len(picks),
