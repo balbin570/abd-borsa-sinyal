@@ -168,33 +168,36 @@
       "results": {
         "5d": -3.4244,
         "10d": -2.1842,
-        "20d": null
+        "20d": -0.4632
       },
       "benchmark_results": {
         "5d": -1.1116,
         "10d": 0.8152,
-        "20d": null
+        "20d": -0.484
       },
       "excess_results": {
         "5d": -2.3129,
         "10d": -2.9995,
-        "20d": null
+        "20d": 0.0207
       },
-      "result_status": "COMPLETE_10D",
+      "result_status": "COMPLETE_20D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-09-23T01:30:30.661126+00:00",
       "spy_entry_price": 772.79,
       "exit_dates": {
         "5d": "2026-09-29",
-        "10d": "2026-10-06"
+        "10d": "2026-10-06",
+        "20d": "2026-10-20"
       },
       "exit_prices": {
         "5d": 329.4,
-        "10d": 333.63
+        "10d": 333.63,
+        "20d": 339.5
       },
       "spy_exit_prices": {
         "5d": 764.2,
-        "10d": 779.09
+        "10d": 779.09,
+        "20d": 769.05
       }
     },
     {
@@ -224,33 +227,36 @@
       "results": {
         "5d": -0.3596,
         "10d": 4.916,
-        "20d": null
+        "20d": -5.0695
       },
       "benchmark_results": {
         "5d": -1.1116,
         "10d": 0.8152,
-        "20d": null
+        "20d": -0.484
       },
       "excess_results": {
         "5d": 0.752,
         "10d": 4.1008,
-        "20d": null
+        "20d": -4.5855
       },
-      "result_status": "COMPLETE_10D",
+      "result_status": "COMPLETE_20D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-09-23T01:30:30.974652+00:00",
       "spy_entry_price": 772.79,
       "exit_dates": {
         "5d": "2026-09-29",
-        "10d": "2026-10-06"
+        "10d": "2026-10-06",
+        "20d": "2026-10-20"
       },
       "exit_prices": {
         "5d": 227.21,
-        "10d": 239.24
+        "10d": 239.24,
+        "20d": 216.47
       },
       "spy_exit_prices": {
         "5d": 764.2,
-        "10d": 779.09
+        "10d": 779.09,
+        "20d": 769.05
       }
     },
     {
@@ -280,33 +286,36 @@
       "results": {
         "5d": -7.1718,
         "10d": 0.1526,
-        "20d": null
+        "20d": -1.6811
       },
       "benchmark_results": {
         "5d": -1.1116,
         "10d": 0.8152,
-        "20d": null
+        "20d": -0.484
       },
       "excess_results": {
         "5d": -6.0602,
         "10d": -0.6626,
-        "20d": null
+        "20d": -1.1972
       },
-      "result_status": "COMPLETE_10D",
+      "result_status": "COMPLETE_20D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-09-23T01:30:31.296228+00:00",
       "spy_entry_price": 772.79,
       "exit_dates": {
         "5d": "2026-09-29",
-        "10d": "2026-10-06"
+        "10d": "2026-10-06",
+        "20d": "2026-10-20"
       },
       "exit_prices": {
         "5d": 352.84,
-        "10d": 380.68
+        "10d": 380.68,
+        "20d": 373.71
       },
       "spy_exit_prices": {
         "5d": 764.2,
-        "10d": 779.09
+        "10d": 779.09,
+        "20d": 769.05
       }
     },
     {
@@ -336,33 +345,36 @@
       "results": {
         "5d": 2.267,
         "10d": 10.5608,
-        "20d": null
+        "20d": -10.4055
       },
       "benchmark_results": {
         "5d": -1.1116,
         "10d": 0.8152,
-        "20d": null
+        "20d": -0.484
       },
       "excess_results": {
         "5d": 3.3785,
         "10d": 9.7456,
-        "20d": null
+        "20d": -9.9215
       },
-      "result_status": "COMPLETE_10D",
+      "result_status": "COMPLETE_20D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-09-23T01:30:31.608107+00:00",
       "spy_entry_price": 772.79,
       "exit_dates": {
         "5d": "2026-09-29",
-        "10d": "2026-10-06"
+        "10d": "2026-10-06",
+        "20d": "2026-10-20"
       },
       "exit_prices": {
         "5d": 388.41,
-        "10d": 419.91
+        "10d": 419.91,
+        "20d": 340.28
       },
       "spy_exit_prices": {
         "5d": 764.2,
-        "10d": 779.09
+        "10d": 779.09,
+        "20d": 769.05
       }
     },
     {
@@ -1676,24 +1688,33 @@
       "entry_date": "2026-10-14",
       "entry_price": 186.76,
       "results": {
-        "5d": null,
+        "5d": -8.4761,
         "10d": null,
         "20d": null
       },
       "benchmark_results": {
-        "5d": null,
+        "5d": -0.7575,
         "10d": null,
         "20d": null
       },
       "excess_results": {
-        "5d": null,
+        "5d": -7.7186,
         "10d": null,
         "20d": null
       },
-      "result_status": "ENTRY_RECORDED",
+      "result_status": "COMPLETE_5D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-10-14T01:52:20.627923+00:00",
-      "spy_entry_price": 774.92
+      "spy_entry_price": 774.92,
+      "exit_dates": {
+        "5d": "2026-10-20"
+      },
+      "exit_prices": {
+        "5d": 170.93
+      },
+      "spy_exit_prices": {
+        "5d": 769.05
+      }
     },
     {
       "symbol": "LLY",
@@ -2132,6 +2153,57 @@
         "macd_histogram_positive": true
       },
       "entry_definition": "Next US trading day open",
+      "entry_date": "2026-10-20",
+      "entry_price": 148.08,
+      "results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "benchmark_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "excess_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "result_status": "ENTRY_RECORDED",
+      "telegram_sent": true,
+      "telegram_sent_at_utc": "2026-10-20T01:48:59.311778+00:00",
+      "spy_entry_price": 765.86
+    },
+    {
+      "symbol": "WDAY",
+      "signal_date": "2026-10-20",
+      "model": "C2-TREND-FROZEN",
+      "model_version": "1.0",
+      "official_forward_sample": true,
+      "sample_status": "OFFICIAL_FORWARD",
+      "v4_shadow": {
+        "candidate": "C2 + SPY momentum20 >= 0",
+        "spy_momentum20": -0.5599,
+        "filter_pass": false,
+        "included_in_v4_shadow": false,
+        "status": "RESEARCH_ONLY"
+      },
+      "recorded_at_utc": "2026-10-21T01:34:28.287059+00:00",
+      "signal_close": 203.98,
+      "ema20": 191.2249,
+      "ema50": 184.7441,
+      "momentum20": 8.3674,
+      "rsi14": 63.493,
+      "macd_histogram": 1.285528,
+      "conditions": {
+        "price_above_ema20": true,
+        "ema20_above_ema50": true,
+        "momentum_5_to_15": true,
+        "rsi_50_to_70": true,
+        "macd_histogram_positive": true
+      },
+      "entry_definition": "Next US trading day open",
       "entry_date": null,
       "entry_price": null,
       "results": {
@@ -2151,7 +2223,7 @@
       },
       "result_status": "WAITING_FOR_ENTRY",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-10-20T01:48:59.311778+00:00"
+      "telegram_sent_at_utc": "2026-10-21T01:34:28.933293+00:00"
     }
   ],
   "daily_scans": [
@@ -2567,18 +2639,38 @@
         "filter_pass": false,
         "status": "RESEARCH_ONLY"
       }
+    },
+    {
+      "evaluated_date": "2026-10-20",
+      "recorded_at_utc": "2026-10-21T01:34:28.287742+00:00",
+      "evaluated_stock_count": 70,
+      "active_full_trend_count": 2,
+      "active_full_trend_symbols": [
+        "NOW",
+        "WDAY"
+      ],
+      "new_signal_count": 1,
+      "new_signal_symbols": [
+        "WDAY"
+      ],
+      "v4_shadow": {
+        "candidate": "C2 + SPY momentum20 >= 0",
+        "spy_momentum20": -0.5599,
+        "filter_pass": false,
+        "status": "RESEARCH_ONLY"
+      }
     }
   ],
-  "last_successful_scan_market_date": "2026-10-19",
-  "last_updated_at_utc": "2026-10-20T01:48:58.982301+00:00",
-  "official_forward_signal_count": 37,
+  "last_successful_scan_market_date": "2026-10-20",
+  "last_updated_at_utc": "2026-10-21T01:34:28.287750+00:00",
+  "official_forward_signal_count": 38,
   "bootstrap_signal_count": 1,
   "v4_shadow": {
     "candidate": "C2 + SPY momentum20 >= 0",
     "status": "RESEARCH_ONLY",
-    "official_c2_signal_count": 37,
+    "official_c2_signal_count": 38,
     "official_v4_shadow_signal_count": 20,
-    "last_scan_spy_momentum20": -0.9076,
+    "last_scan_spy_momentum20": -0.5599,
     "last_scan_filter_pass": false
   }
 }
