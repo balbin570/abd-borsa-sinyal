@@ -10188,7 +10188,10 @@ async def overnight_prescreen_run(request: Request, background_tasks: Background
     if not key or not secrets.compare_digest(request.headers.get('X-Automation-Key', ''), key):
         raise HTTPException(status_code=401, detail='Unauthorized')
     now = _overnight_clock()
-    if now.weekday() >= 5 or now.hour != 13 or not 40 <= now.minute <= 55:
+    if now.weekday() >= 5 or (
+        not (now.hour == 13 and 40 <= now.minute <= 55)
+        and os.getenv("OVERNIGHT_MANUAL_TEST", "false").lower() != "true"
+    ):
         return {'status': 'outside_window', 'now_ny': now.isoformat(),
                 'required': 'weekday 13:40–13:55 NY'}
     if not TWELVE_DATA_API_KEY or not os.getenv('DATABASE_URL'):
