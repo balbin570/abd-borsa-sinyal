@@ -10127,34 +10127,49 @@ def _overnight_pre_db(op, day, payload=None):
 
 
 async def _overnight_prescreen_worker(day):
+    """Checkpoint progress so restarts and API errors do not erase completed work."""
     _OVERNIGHT_PRE_STATE['running'] = True
     _OVERNIGHT_PRE_STATE['last_error'] = None
     try:
-        ranked, errors = [], []
-        # Twelve Data Basic: no more than ~7 credits/minute; daily credit budget
-        # shared with other services. Fail closed if the universe is incomplete.
-        for symbol in _OVERNIGHT_SYMBOLS:
-            try:
-                params = {'symbol': symbol, 'interval': '1day', 'outputsize': 75,
-                          'apikey': TWELVE_DATA_API_KEY}
-                async with httpx.AsyncClient(timeout=20) as client:
+        previous = await asyncio.to_thread(_overnight_pre_db, 'read', day)
+        previous = previous if isinstance(previous, dict) and previous.get('status') == 'IN_PROGRESS' else {}
+        ranked_map = {r['symbol']: r for r in previous.get('ranked', []) if r.get('symbol') in _OVERNIGHT_SYMBOLS}
+        errors = []
+        async with httpx.AsyncClient(timeout=20) as client:
+            for symbol in _OVERNIGHT_SYMBOLS:
+                if symbol in ranked_map:
+                    continue
+                try:
+                    params = {'symbol': symbol, 'interval': '1day', 'outputsize': 75,
+                              'apikey': TWELVE_DATA_API_KEY}
                     response = await client.get('https://api.twelvedata.com/time_series', params=params)
                     response.raise_for_status()
                     data = response.json()
-                values = sorted(data.get('values', []), key=lambda x: x['datetime'])
-                if len(values) < 51:
-                    raise RuntimeError('Insufficient daily bars / API credits')
-                snap = _weekly_score_snapshot(values)
-                ranked.append({'symbol': symbol, 'score': snap['score'],
-                               'momentum20': snap['momentum20'],
-                               'rsi14': snap['rsi14']})
-            except Exception as exc:
-                errors.append({'symbol': symbol, 'error': str(exc)[:160]})
-            await asyncio.sleep(8.3)
-        if errors or len(ranked) != len(_OVERNIGHT_SYMBOLS):
-            raise RuntimeError(f'Pre-screen incomplete: {len(ranked)}/{len(_OVERNIGHT_SYMBOLS)}; errors={errors[:3]}')
-        ranked.sort(key=lambda r: (r['score'], r['momentum20']), reverse=True)
-        result = {'day': day, 'universe_count': len(_OVERNIGHT_SYMBOLS),
+                    values = sorted(data.get('values', []), key=lambda x: x['datetime'])
+                    if len(values) < 51:
+                        raise RuntimeError('Insufficient daily bars / API credits')
+                    snap = _weekly_score_snapshot(values)
+                    ranked_map[symbol] = {'symbol': symbol, 'score': snap['score'],
+                                          'momentum20': snap['momentum20'], 'rsi14': snap['rsi14']}
+                except Exception as exc:
+                    errors.append({'symbol': symbol, 'error': str(exc).replace(TWELVE_DATA_API_KEY, '[REDACTED]')[:160]})
+                processed = len(ranked_map) + len(errors)
+                _OVERNIGHT_PRE_STATE['progress'] = {'day': day, 'processed': processed,
+                    'successful': len(ranked_map), 'errors': len(errors), 'total': len(_OVERNIGHT_SYMBOLS)}
+                if processed % 10 == 0 or processed == len(_OVERNIGHT_SYMBOLS):
+                    checkpoint = {'status': 'IN_PROGRESS', 'day': day,
+                        'ranked': list(ranked_map.values()), 'errors': errors,
+                        'scanned_count': len(ranked_map), 'universe_count': len(_OVERNIGHT_SYMBOLS)}
+                    await asyncio.to_thread(_overnight_pre_db, 'save', day, checkpoint)
+                await asyncio.sleep(8.3)
+        if errors or len(ranked_map) != len(_OVERNIGHT_SYMBOLS):
+            checkpoint = {'status': 'IN_PROGRESS', 'day': day,
+                'ranked': list(ranked_map.values()), 'errors': errors,
+                'scanned_count': len(ranked_map), 'universe_count': len(_OVERNIGHT_SYMBOLS)}
+            await asyncio.to_thread(_overnight_pre_db, 'save', day, checkpoint)
+            raise RuntimeError(f'Pre-screen incomplete: {len(ranked_map)}/{len(_OVERNIGHT_SYMBOLS)}; errors={errors[:3]}')
+        ranked = sorted(ranked_map.values(), key=lambda r: (r['score'], r['momentum20']), reverse=True)
+        result = {'status': 'COMPLETED', 'day': day, 'universe_count': len(_OVERNIGHT_SYMBOLS),
                   'scanned_count': len(ranked), 'shortlist': [r['symbol'] for r in ranked[:_OVERNIGHT_FINALISTS]],
                   'method': 'daily technical pre-screen; final picks use fresh 5min bars',
                   'completed_at_ny': _overnight_clock().isoformat()}
@@ -10183,10 +10198,10 @@ async def overnight_prescreen_run(request: Request, background_tasks: Background
             return {'status': 'already_running'}
         day = now.date().isoformat()
         existing = await asyncio.to_thread(_overnight_pre_db, 'read', day)
-        if existing:
+        if existing and existing.get('status') == 'COMPLETED':
             return {'status': 'already_completed', 'day': day}
         _OVERNIGHT_PRE_STATE['running'] = True
-        background_tasks.add_task(_overnight_prescreen_worker, day)
+        asyncio.create_task(_overnight_prescreen_worker(day))
         return {'status': 'started', 'day': day, 'universe_count': len(_OVERNIGHT_SYMBOLS)}
 
 
@@ -10206,7 +10221,7 @@ async def _overnight_worker(day):
     _OVERNIGHT_STATE['last_error'] = None
     try:
         pre = await asyncio.to_thread(_overnight_pre_db, 'read', day)
-        if not pre or pre.get('scanned_count') != len(_OVERNIGHT_SYMBOLS):
+        if not pre or pre.get('status') != 'COMPLETED' or pre.get('scanned_count') != len(_OVERNIGHT_SYMBOLS):
             raise RuntimeError('Complete 250-symbol pre-screen missing; no stale/partial recommendations sent')
         finalists = tuple(pre.get('shortlist', []))
         if len(finalists) != _OVERNIGHT_FINALISTS:
