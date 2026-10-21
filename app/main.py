@@ -10023,7 +10023,11 @@ from zoneinfo import ZoneInfo as _overnight_ZoneInfo
 from datetime import timezone as _overnight_timezone
 
 _OVERNIGHT_NY = _overnight_ZoneInfo('America/New_York')
-_OVERNIGHT_SYMBOLS = tuple(EXPANDED_UNIVERSE)  # Up to 250 symbols; pre-screen only
+_OVERNIGHT_EXCLUDED = {'EA', 'EQR', 'FL', 'HES', 'IPG', 'K'}
+_OVERNIGHT_SYMBOLS = tuple(
+    symbol for symbol in EXPANDED_UNIVERSE
+    if symbol not in _OVERNIGHT_EXCLUDED
+)
 _OVERNIGHT_STATE = {'running': False, 'last_result': None, 'last_error': None}
 _OVERNIGHT_LOCK = asyncio.Lock()
 _OVERNIGHT_PRE_STATE = {'running': False, 'last_result': None, 'last_error': None}
