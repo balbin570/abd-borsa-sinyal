@@ -10193,10 +10193,10 @@ async def overnight_prescreen_run(request: Request, background_tasks: Background
         raise HTTPException(status_code=401, detail='Unauthorized')
     now = _overnight_clock()
     if now.weekday() >= 5 or (
-        not (now.hour == 13 and 40 <= now.minute <= 55)
+        not (((now.hour == 13 and now.minute >= 40) or (now.hour == 14 and now.minute <= 54)))
         and os.getenv("OVERNIGHT_MANUAL_TEST", "false").lower() != "true"
     ):
-        return Response(status_code=204)
+        raise HTTPException(status_code=409, detail='Prescreen outside New York 13:40-14:54 window')
     if not TWELVE_DATA_API_KEY or not os.getenv('DATABASE_URL'):
         raise HTTPException(status_code=503, detail='API/database settings missing')
     async with _OVERNIGHT_PRE_LOCK:
@@ -10244,7 +10244,7 @@ async def _overnight_worker(day):
         picks = sorted(rows,
                        key=lambda r: (len(r['models']), r['relative_pct']), reverse=True)[:4]
         now = _overnight_clock()
-        if now.date().isoformat() != day or now.hour != 15 or now.minute > 14:
+        if now.date().isoformat() != day or now.hour != 15 or now.minute > 24:
             raise RuntimeError('Delivery deadline missed; stale signals NOT sent')
         message = (f'📊 DAILY OVERNIGHT V2 | PAPER ONLY\n{day} 15:{now.minute:02d} New York\n'
                    f'On tarama: {pre["scanned_count"]} hisse | Son kontrol: {len(finalists)} aday\n'
@@ -10309,8 +10309,8 @@ async def overnight_run(request: Request):
     if not key or not secrets.compare_digest(supplied, key):
         raise HTTPException(status_code=401, detail='Unauthorized')
     now = _overnight_clock()
-    if now.weekday() >= 5 or now.hour != 15 or not (0 <= now.minute <= 12):
-        return Response(status_code=204)
+    if now.weekday() >= 5 or now.hour != 15 or not (0 <= now.minute <= 20):
+        raise HTTPException(status_code=409, detail='Final scan outside New York 15:00-15:20 window; no stale Telegram signal sent')
     if not TWELVE_DATA_API_KEY or not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID or not os.getenv('DATABASE_URL'):
         raise HTTPException(status_code=503, detail='Required settings missing')
     async with _OVERNIGHT_LOCK:
