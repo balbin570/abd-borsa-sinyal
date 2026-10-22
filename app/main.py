@@ -10242,8 +10242,8 @@ async def _overnight_worker(day):
             return 100*(float(bars[-1]['close'])/float(bars[0]['open'])-1)
         spy, qqq = day_change('SPY'), day_change('QQQ')
         rows = [_overnight_features(s, bars_by_symbol[s], spy, qqq) for s in finalists]
-        picks = sorted([r for r in rows if r['models']],
-                       key=lambda r: (len(r['models']), r['relative_pct']), reverse=True)[:2]
+        picks = sorted(rows,
+                       key=lambda r: (len(r['models']), r['relative_pct']), reverse=True)[:4]
         now = _overnight_clock()
         if now.date().isoformat() != day or now.hour != 15 or now.minute > 14:
             raise RuntimeError('Delivery deadline missed; stale signals NOT sent')
@@ -10253,13 +10253,13 @@ async def _overnight_worker(day):
                    'Veri: 5 dakikalik mum; fiyatlar anlik emir fiyati degildir.\n'
                    f'SPY {spy:+.2f}% | QQQ {qqq:+.2f}%\n\n')
         if picks:
-            for r in picks:
-                message += (f"{r['symbol']} | ${r['price']:.2f} | Gun {r['change_pct']:+.2f}% | "
+            for rank, r in enumerate(picks, start=1):
+                message += (f"{rank}. {r['symbol']} | ${r['price']:.2f} | Gun {r['change_pct']:+.2f}% | "
                             f"Son30dk {r['last30_pct']:+.2f}% | Goreli {r['relative_pct']:+.2f}%\n"
-                            f"Modeller: {', '.join(r['models'])}\n\n")
+                            f"Modeller: {', '.join(r['models']) if r['models'] else 'Teyit yok - sadece izleme'}\n\n")
         else:
             message += 'Bugun uygun sinyal YOK. Islem yapmama secenegi korunur.\n'
-        message += '\nBu rapor arastirma sinyalidir; otomatik emir yoktur. Gece gap riski vardir.'
+        message += '\nSiralama 4 adaylik izleme listesidir; model teyidi olmayanlar alis sinyali DEGILDIR. Otomatik emir yoktur. Gece gap riski vardir.'
         async with httpx.AsyncClient(timeout=12) as client:
             resp = await client.post(f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage',
                                      json={'chat_id': TELEGRAM_CHAT_ID, 'text': message})
@@ -10304,7 +10304,7 @@ async def overnight_run(request: Request, background_tasks: BackgroundTasks):
         if not claimed:
             return {'status':'already_sent_or_running','day':day}
         _OVERNIGHT_STATE['running'] = True
-        background_tasks.add_task(_overnight_worker,day)
+        asyncio.create_task(_overnight_worker(day))
         return {'status':'started','day':day,'mode':'RESEARCH_PAPER_ONLY'}
 
 
