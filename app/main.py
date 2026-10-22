@@ -10187,8 +10187,6 @@ async def _overnight_prescreen_worker(day):
 
 @app.post('/overnight/prescreen/run')
 async def overnight_prescreen_run(request: Request, background_tasks: BackgroundTasks):
-    from fastapi.responses import JSONResponse
-    return JSONResponse(content={"status": "received"})
     import secrets
     key = os.getenv('OVERNIGHT_CRON_KEY', '')
     if not key or not secrets.compare_digest(request.headers.get('X-Automation-Key', ''), key):
