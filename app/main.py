@@ -4,7 +4,7 @@ import statistics
 import json
 from pathlib import Path
 from datetime import datetime, timedelta
-from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Request, BackgroundTasks, Response
 from pydantic import BaseModel
 import httpx
 
@@ -10185,7 +10185,7 @@ async def _overnight_prescreen_worker(day):
         _OVERNIGHT_PRE_STATE['running'] = False
 
 
-@app.post('/overnight/prescreen/run')
+@app.post('/overnight/prescreen/run', status_code=204)
 async def overnight_prescreen_run(request: Request, background_tasks: BackgroundTasks):
     import secrets
     key = os.getenv('OVERNIGHT_CRON_KEY', '')
@@ -10196,20 +10196,19 @@ async def overnight_prescreen_run(request: Request, background_tasks: Background
         not (now.hour == 13 and 40 <= now.minute <= 55)
         and os.getenv("OVERNIGHT_MANUAL_TEST", "false").lower() != "true"
     ):
-        return {'status': 'outside_window', 'now_ny': now.isoformat(),
-                'required': 'weekday 13:40–13:55 NY'}
+        return Response(status_code=204)
     if not TWELVE_DATA_API_KEY or not os.getenv('DATABASE_URL'):
         raise HTTPException(status_code=503, detail='API/database settings missing')
     async with _OVERNIGHT_PRE_LOCK:
         if _OVERNIGHT_PRE_STATE['running']:
-            return {'status': 'already_running'}
+            return Response(status_code=204)
         day = now.date().isoformat()
         existing = await asyncio.to_thread(_overnight_pre_db, 'read', day)
         if existing and existing.get('status') == 'COMPLETED':
-            return {'status': 'already_completed', 'day': day}
+            return Response(status_code=204)
         _OVERNIGHT_PRE_STATE['running'] = True
         asyncio.create_task(_overnight_prescreen_worker(day))
-        return {'status': 'started', 'day': day, 'universe_count': len(_OVERNIGHT_SYMBOLS)}
+        return Response(status_code=204)
 
 
 @app.get('/overnight/prescreen/status')
@@ -10283,29 +10282,43 @@ async def _overnight_worker(day):
         _OVERNIGHT_STATE['running'] = False
 
 
-@app.post('/overnight/run')
-async def overnight_run(request: Request, background_tasks: BackgroundTasks):
-    key = os.getenv('OVERNIGHT_CRON_KEY','')
-    if not key or request.headers.get('X-Automation-Key','') != key:
+async def _overnight_dispatch(day):
+    """Claim DB after HTTP response, so cron never waits for PostgreSQL."""
+    try:
+        claimed = await asyncio.to_thread(_overnight_db, 'claim', day)
+        if not claimed:
+            _OVERNIGHT_STATE['last_error'] = 'Already sent or recently claimed for ' + day
+            return
+        await _overnight_worker(day)
+    except Exception as exc:
+        _OVERNIGHT_STATE['last_error'] = f'Dispatch failed: {type(exc).__name__}: {exc}'
+        try:
+            await asyncio.to_thread(_overnight_db, 'fail', day)
+        except Exception:
+            pass
+    finally:
+        _OVERNIGHT_STATE['running'] = False
+
+
+@app.post('/overnight/run', status_code=204)
+async def overnight_run(request: Request):
+    """Always send a zero-byte success response; work runs asynchronously."""
+    import secrets
+    key = os.getenv('OVERNIGHT_CRON_KEY', '')
+    supplied = request.headers.get('X-Automation-Key', '')
+    if not key or not secrets.compare_digest(supplied, key):
         raise HTTPException(status_code=401, detail='Unauthorized')
     now = _overnight_clock()
-    if now.weekday()>=5 or now.hour!=15 or not (0<=now.minute<=12):
-        return {'status':'outside_window','now_ny':now.isoformat(),'required':'weekday 15:00–15:12 NY'}
-    if not TWELVE_DATA_API_KEY or not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        raise HTTPException(status_code=503, detail='Required API/Telegram configuration missing')
+    if now.weekday() >= 5 or now.hour != 15 or not (0 <= now.minute <= 12):
+        return Response(status_code=204)
+    if not TWELVE_DATA_API_KEY or not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID or not os.getenv('DATABASE_URL'):
+        raise HTTPException(status_code=503, detail='Required settings missing')
     async with _OVERNIGHT_LOCK:
-        if _OVERNIGHT_STATE['running']:
-            return {'status':'already_running'}
-        day = now.date().isoformat()
-        try:
-            claimed = await asyncio.to_thread(_overnight_db,'claim',day)
-        except Exception as exc:
-            raise HTTPException(status_code=503, detail='Delivery database unavailable') from exc
-        if not claimed:
-            return {'status':'already_sent_or_running','day':day}
-        _OVERNIGHT_STATE['running'] = True
-        asyncio.create_task(_overnight_worker(day))
-        return {'status':'started','day':day,'mode':'RESEARCH_PAPER_ONLY'}
+        if not _OVERNIGHT_STATE['running']:
+            _OVERNIGHT_STATE['running'] = True
+            _OVERNIGHT_STATE['last_error'] = None
+            asyncio.create_task(_overnight_dispatch(now.date().isoformat()))
+    return Response(status_code=204)
 
 
 @app.get('/overnight/status')
