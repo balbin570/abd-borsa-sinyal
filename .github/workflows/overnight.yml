@@ -1,3 +1,4 @@
+
 name: Overnight Telegram pre-close
 
 on:
@@ -27,9 +28,9 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$MANUAL_ACTION" = "telegram-test" ]; then
-            URL='https://abd-borsa-sinyal.onrender.com/overnight/test-telegram'
+            URL='https://abd-borsa-sinyal-eplj.onrender.com/overnight/test-telegram'
           else
-            URL='https://abd-borsa-sinyal.onrender.com/overnight/run'
+            URL='https://abd-borsa-sinyal-eplj.onrender.com/overnight/run'
           fi
           curl --fail --show-error --silent --max-time 25 \
             -X POST -H "X-Automation-Key: $CRON_KEY" \
