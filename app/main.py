@@ -10185,6 +10185,65 @@ async def _overnight_prescreen_worker(day):
         _OVERNIGHT_PRE_STATE['running'] = False
 
 
+
+# Restart recovery: preserve a strong reference to background work and
+# automatically resume an incomplete prescreen during the allowed NY window.
+_OVERNIGHT_PRE_TASK = None
+
+def _overnight_prescreen_window_open(now):
+    return now.weekday() < 5 and (
+        (now.hour == 13 and now.minute >= 40) or
+        (now.hour == 14 and now.minute <= 54)
+    )
+
+def _overnight_launch_prescreen(day):
+    global _OVERNIGHT_PRE_TASK
+    _OVERNIGHT_PRE_STATE['running'] = True
+    _OVERNIGHT_PRE_TASK = asyncio.create_task(
+        _overnight_prescreen_worker(day),
+        name='overnight-prescreen-' + day
+    )
+
+async def _overnight_prescreen_recovery_loop():
+    # Start after the web app is ready. Check persistent progress after a
+    # restart, and restart the worker if it was interrupted.
+    while True:
+        try:
+            now = _overnight_clock()
+            if (_overnight_prescreen_window_open(now)
+                    and TWELVE_DATA_API_KEY and os.getenv('DATABASE_URL')):
+                async with _OVERNIGHT_PRE_LOCK:
+                    if not _OVERNIGHT_PRE_STATE['running']:
+                        saved = await asyncio.to_thread(
+                            _overnight_pre_db, 'read', now.date().isoformat()
+                        )
+                        # Do not initiate a brand-new run without the scheduler;
+                        # only recover a run that already has a DB checkpoint.
+                        if (isinstance(saved, dict)
+                                and saved.get('status') == 'IN_PROGRESS'):
+                            _overnight_launch_prescreen(now.date().isoformat())
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            print('Prescreen recovery check failed:', type(exc).__name__, str(exc)[:250])
+        await asyncio.sleep(45)
+
+@app.on_event('startup')
+async def _overnight_start_recovery():
+    app.state.overnight_recovery_task = asyncio.create_task(
+        _overnight_prescreen_recovery_loop()
+    )
+
+@app.on_event('shutdown')
+async def _overnight_stop_recovery():
+    task = getattr(app.state, 'overnight_recovery_task', None)
+    if task:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
 @app.post('/overnight/prescreen/run', status_code=204)
 async def overnight_prescreen_run(request: Request, background_tasks: BackgroundTasks):
     import secrets
@@ -10207,7 +10266,7 @@ async def overnight_prescreen_run(request: Request, background_tasks: Background
         if existing and existing.get('status') == 'COMPLETED':
             return Response(status_code=204)
         _OVERNIGHT_PRE_STATE['running'] = True
-        asyncio.create_task(_overnight_prescreen_worker(day))
+        _overnight_launch_prescreen(day)
         return Response(status_code=204)
 
 
