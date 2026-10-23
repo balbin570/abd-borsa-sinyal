@@ -1164,31 +1164,34 @@
       "entry_price": 233.84,
       "results": {
         "5d": -7.1031,
-        "10d": null,
+        "10d": -9.2499,
         "20d": null
       },
       "benchmark_results": {
         "5d": -0.5733,
-        "10d": null,
+        "10d": -1.582,
         "20d": null
       },
       "excess_results": {
         "5d": -6.5299,
-        "10d": null,
+        "10d": -7.6679,
         "20d": null
       },
-      "result_status": "COMPLETE_5D",
+      "result_status": "COMPLETE_10D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-10-09T03:01:14.798135+00:00",
       "spy_entry_price": 776.24,
       "exit_dates": {
-        "5d": "2026-10-15"
+        "5d": "2026-10-15",
+        "10d": "2026-10-22"
       },
       "exit_prices": {
-        "5d": 217.23
+        "5d": 217.23,
+        "10d": 212.21
       },
       "spy_exit_prices": {
-        "5d": 771.79
+        "5d": 771.79,
+        "10d": 763.96
       }
     },
     {
@@ -1224,31 +1227,34 @@
       "entry_price": 326.0,
       "results": {
         "5d": -14.8896,
-        "10d": null,
+        "10d": -29.4018,
         "20d": null
       },
       "benchmark_results": {
         "5d": -0.5733,
-        "10d": null,
+        "10d": -1.582,
         "20d": null
       },
       "excess_results": {
         "5d": -14.3163,
-        "10d": null,
+        "10d": -27.8199,
         "20d": null
       },
-      "result_status": "COMPLETE_5D",
+      "result_status": "COMPLETE_10D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-10-09T03:01:15.174554+00:00",
       "spy_entry_price": 776.24,
       "exit_dates": {
-        "5d": "2026-10-15"
+        "5d": "2026-10-15",
+        "10d": "2026-10-22"
       },
       "exit_prices": {
-        "5d": 277.46
+        "5d": 277.46,
+        "10d": 230.15
       },
       "spy_exit_prices": {
-        "5d": 771.79
+        "5d": 771.79,
+        "10d": 763.96
       }
     },
     {
@@ -1284,31 +1290,34 @@
       "entry_price": 410.31,
       "results": {
         "5d": -1.55,
-        "10d": null,
+        "10d": -5.9833,
         "20d": null
       },
       "benchmark_results": {
         "5d": -0.5733,
-        "10d": null,
+        "10d": -1.582,
         "20d": null
       },
       "excess_results": {
         "5d": -0.9768,
-        "10d": null,
+        "10d": -4.4013,
         "20d": null
       },
-      "result_status": "COMPLETE_5D",
+      "result_status": "COMPLETE_10D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-10-09T03:01:15.550030+00:00",
       "spy_entry_price": 776.24,
       "exit_dates": {
-        "5d": "2026-10-15"
+        "5d": "2026-10-15",
+        "10d": "2026-10-22"
       },
       "exit_prices": {
-        "5d": 403.95
+        "5d": 403.95,
+        "10d": 385.76
       },
       "spy_exit_prices": {
-        "5d": 771.79
+        "5d": 771.79,
+        "10d": 763.96
       }
     },
     {
@@ -1883,24 +1892,33 @@
       "entry_date": "2026-10-16",
       "entry_price": 541.31,
       "results": {
-        "5d": null,
+        "5d": -3.7372,
         "10d": null,
         "20d": null
       },
       "benchmark_results": {
-        "5d": null,
+        "5d": -1.2001,
         "10d": null,
         "20d": null
       },
       "excess_results": {
-        "5d": null,
+        "5d": -2.5371,
         "10d": null,
         "20d": null
       },
-      "result_status": "ENTRY_RECORDED",
+      "result_status": "COMPLETE_5D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-10-16T01:14:10.297601+00:00",
-      "spy_entry_price": 773.24
+      "spy_entry_price": 773.24,
+      "exit_dates": {
+        "5d": "2026-10-22"
+      },
+      "exit_prices": {
+        "5d": 521.08
+      },
+      "spy_exit_prices": {
+        "5d": 763.96
+      }
     },
     {
       "symbol": "PLTR",
@@ -1934,24 +1952,33 @@
       "entry_date": "2026-10-16",
       "entry_price": 201.79,
       "results": {
-        "5d": null,
+        "5d": -2.7752,
         "10d": null,
         "20d": null
       },
       "benchmark_results": {
-        "5d": null,
+        "5d": -1.2001,
         "10d": null,
         "20d": null
       },
       "excess_results": {
-        "5d": null,
+        "5d": -1.575,
         "10d": null,
         "20d": null
       },
-      "result_status": "ENTRY_RECORDED",
+      "result_status": "COMPLETE_5D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-10-16T01:14:10.669539+00:00",
-      "spy_entry_price": 773.24
+      "spy_entry_price": 773.24,
+      "exit_dates": {
+        "5d": "2026-10-22"
+      },
+      "exit_prices": {
+        "5d": 196.19
+      },
+      "spy_exit_prices": {
+        "5d": 763.96
+      }
     },
     {
       "symbol": "DIS",
@@ -1985,24 +2012,33 @@
       "entry_date": "2026-10-16",
       "entry_price": 111.48,
       "results": {
-        "5d": null,
+        "5d": 1.4801,
         "10d": null,
         "20d": null
       },
       "benchmark_results": {
-        "5d": null,
+        "5d": -1.2001,
         "10d": null,
         "20d": null
       },
       "excess_results": {
-        "5d": null,
+        "5d": 2.6802,
         "10d": null,
         "20d": null
       },
-      "result_status": "ENTRY_RECORDED",
+      "result_status": "COMPLETE_5D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-10-16T01:14:11.060767+00:00",
-      "spy_entry_price": 773.24
+      "spy_entry_price": 773.24,
+      "exit_dates": {
+        "5d": "2026-10-22"
+      },
+      "exit_prices": {
+        "5d": 113.13
+      },
+      "spy_exit_prices": {
+        "5d": 763.96
+      }
     },
     {
       "symbol": "NOW",
@@ -2036,24 +2072,33 @@
       "entry_date": "2026-10-16",
       "entry_price": 151.92,
       "results": {
-        "5d": null,
+        "5d": 3.3439,
         "10d": null,
         "20d": null
       },
       "benchmark_results": {
-        "5d": null,
+        "5d": -1.2001,
         "10d": null,
         "20d": null
       },
       "excess_results": {
-        "5d": null,
+        "5d": 4.544,
         "10d": null,
         "20d": null
       },
-      "result_status": "ENTRY_RECORDED",
+      "result_status": "COMPLETE_5D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-10-16T01:14:11.434093+00:00",
-      "spy_entry_price": 773.24
+      "spy_entry_price": 773.24,
+      "exit_dates": {
+        "5d": "2026-10-22"
+      },
+      "exit_prices": {
+        "5d": 157.0
+      },
+      "spy_exit_prices": {
+        "5d": 763.96
+      }
     },
     {
       "symbol": "RBLX",
@@ -2087,24 +2132,33 @@
       "entry_date": "2026-10-16",
       "entry_price": 51.5,
       "results": {
-        "5d": null,
+        "5d": 4.7767,
         "10d": null,
         "20d": null
       },
       "benchmark_results": {
-        "5d": null,
+        "5d": -1.2001,
         "10d": null,
         "20d": null
       },
       "excess_results": {
-        "5d": null,
+        "5d": 5.9768,
         "10d": null,
         "20d": null
       },
-      "result_status": "ENTRY_RECORDED",
+      "result_status": "COMPLETE_5D",
       "telegram_sent": true,
       "telegram_sent_at_utc": "2026-10-16T01:14:11.910804+00:00",
-      "spy_entry_price": 773.24
+      "spy_entry_price": 773.24,
+      "exit_dates": {
+        "5d": "2026-10-22"
+      },
+      "exit_prices": {
+        "5d": 53.96
+      },
+      "spy_exit_prices": {
+        "5d": 763.96
+      }
     },
     {
       "symbol": "HUBS",
@@ -2288,8 +2342,8 @@
         "macd_histogram_positive": true
       },
       "entry_definition": "Next US trading day open",
-      "entry_date": null,
-      "entry_price": null,
+      "entry_date": "2026-10-22",
+      "entry_price": 258.126,
       "results": {
         "5d": null,
         "10d": null,
@@ -2305,9 +2359,10 @@
         "10d": null,
         "20d": null
       },
-      "result_status": "WAITING_FOR_ENTRY",
+      "result_status": "ENTRY_RECORDED",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-10-22T01:32:13.120565+00:00"
+      "telegram_sent_at_utc": "2026-10-22T01:32:13.120565+00:00",
+      "spy_entry_price": 766.37
     },
     {
       "symbol": "HUBS",
@@ -2338,6 +2393,57 @@
         "macd_histogram_positive": true
       },
       "entry_definition": "Next US trading day open",
+      "entry_date": "2026-10-22",
+      "entry_price": 253.8,
+      "results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "benchmark_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "excess_results": {
+        "5d": null,
+        "10d": null,
+        "20d": null
+      },
+      "result_status": "ENTRY_RECORDED",
+      "telegram_sent": true,
+      "telegram_sent_at_utc": "2026-10-22T01:32:13.681323+00:00",
+      "spy_entry_price": 766.37
+    },
+    {
+      "symbol": "CRM",
+      "signal_date": "2026-10-22",
+      "model": "C2-TREND-FROZEN",
+      "model_version": "1.0",
+      "official_forward_sample": true,
+      "sample_status": "OFFICIAL_FORWARD",
+      "v4_shadow": {
+        "candidate": "C2 + SPY momentum20 >= 0",
+        "spy_momentum20": -0.4197,
+        "filter_pass": false,
+        "included_in_v4_shadow": false,
+        "status": "RESEARCH_ONLY"
+      },
+      "recorded_at_utc": "2026-10-23T01:30:43.133575+00:00",
+      "signal_close": 250.29,
+      "ema20": 238.1816,
+      "ema50": 228.0817,
+      "momentum20": 5.0667,
+      "rsi14": 64.6067,
+      "macd_histogram": 1.28713,
+      "conditions": {
+        "price_above_ema20": true,
+        "ema20_above_ema50": true,
+        "momentum_5_to_15": true,
+        "rsi_50_to_70": true,
+        "macd_histogram_positive": true
+      },
+      "entry_definition": "Next US trading day open",
       "entry_date": null,
       "entry_price": null,
       "results": {
@@ -2357,7 +2463,7 @@
       },
       "result_status": "WAITING_FOR_ENTRY",
       "telegram_sent": true,
-      "telegram_sent_at_utc": "2026-10-22T01:32:13.681323+00:00"
+      "telegram_sent_at_utc": "2026-10-23T01:30:43.455836+00:00"
     }
   ],
   "daily_scans": [
@@ -2816,18 +2922,37 @@
         "filter_pass": true,
         "status": "RESEARCH_ONLY"
       }
+    },
+    {
+      "evaluated_date": "2026-10-22",
+      "recorded_at_utc": "2026-10-23T01:30:43.143040+00:00",
+      "evaluated_stock_count": 70,
+      "active_full_trend_count": 1,
+      "active_full_trend_symbols": [
+        "CRM"
+      ],
+      "new_signal_count": 1,
+      "new_signal_symbols": [
+        "CRM"
+      ],
+      "v4_shadow": {
+        "candidate": "C2 + SPY momentum20 >= 0",
+        "spy_momentum20": -0.4197,
+        "filter_pass": false,
+        "status": "RESEARCH_ONLY"
+      }
     }
   ],
-  "last_successful_scan_market_date": "2026-10-21",
-  "last_updated_at_utc": "2026-10-22T01:32:12.510796+00:00",
-  "official_forward_signal_count": 40,
+  "last_successful_scan_market_date": "2026-10-22",
+  "last_updated_at_utc": "2026-10-23T01:30:43.143063+00:00",
+  "official_forward_signal_count": 41,
   "bootstrap_signal_count": 1,
   "v4_shadow": {
     "candidate": "C2 + SPY momentum20 >= 0",
     "status": "RESEARCH_ONLY",
-    "official_c2_signal_count": 40,
+    "official_c2_signal_count": 41,
     "official_v4_shadow_signal_count": 22,
-    "last_scan_spy_momentum20": 0.6877,
-    "last_scan_filter_pass": true
+    "last_scan_spy_momentum20": -0.4197,
+    "last_scan_filter_pass": false
   }
 }
