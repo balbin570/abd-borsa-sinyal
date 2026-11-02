@@ -1201,6 +1201,7 @@ async def scan_watchlist():
     }
 @app.get("/send-strong")
 async def send_strong_signals():
+    raise HTTPException(status_code=423, detail="Frozen: overnight V3 only")
     results = []
 
     for group in WATCHLIST_GROUPS:
@@ -1587,6 +1588,7 @@ async def _run_weekly_scan():
 
 @app.get("/send-weekly")
 async def send_weekly_signals(background_tasks: BackgroundTasks):
+    raise HTTPException(status_code=423, detail="Frozen: overnight V3 only")
     """Cron'a hemen cevap verir; haftalik portfoy taramasini arka planda tamamlar."""
     if WEEKLY_STATE["running"]:
         return {"status": "already_running", "mode": "weekly_portfolio"}
@@ -10091,26 +10093,44 @@ async def _overnight_bars(symbol):
 
 
 def _overnight_features(symbol, bars, spy_change, qqq_change):
-    op = float(bars[0]['open']); px = float(bars[-1]['close'])
-    volumes = [float(x.get('volume') or 0) for x in bars]
+    """V3 conservative intraday confirmation; research hypothesis, not proven edge."""
+    op = float(bars[0]['open'])
     closes = [float(x['close']) for x in bars]
     highs = [float(x['high']) for x in bars]
     lows = [float(x['low']) for x in bars]
+    volumes = [float(x.get('volume') or 0) for x in bars]
+    px = closes[-1]
     total_vol = sum(volumes)
-    vwap = sum(((highs[i]+lows[i]+closes[i])/3)*volumes[i] for i in range(len(bars))) / total_vol if total_vol else px
-    intraday = 100*(px/op-1)
-    last30 = 100*(px/closes[-7]-1) if len(closes)>=7 else 0
-    rel = intraday - (spy_change+qqq_change)/2
-    range_position = (px-min(lows))/(max(highs)-min(lows)) if max(highs)>min(lows) else 0.5
-    # Three separate research models, not the C2 scoring model.
-    closing_momentum = last30 > 0.12 and px > vwap and range_position > .7
-    pullback_recovery = min(lows) < op*.992 and px > vwap and last30 > .15
-    relative_strength = rel > .35 and px > vwap and last30 > 0
-    return {'symbol':symbol,'price':round(px,2),'change_pct':round(intraday,2),
-            'last30_pct':round(last30,2),'relative_pct':round(rel,2),
-            'vwap':round(vwap,2),'models':[name for name,flag in (
-                ('CLOSING_MOMENTUM',closing_momentum),('PULLBACK_RECOVERY',pullback_recovery),
-                ('RELATIVE_STRENGTH',relative_strength)) if flag]}
+    vwap = (sum(((h + l + c) / 3) * v for h, l, c, v in
+                zip(highs, lows, closes, volumes)) / total_vol) if total_vol > 0 else 0
+    day_pct = 100 * (px / op - 1)
+    last30 = 100 * (px / closes[-7] - 1)
+    relative = day_pct - (spy_change + qqq_change) / 2
+    spread = max(highs) - min(lows)
+    range_position = (px - min(lows)) / spread if spread > 0 else 0
+    prior_volumes = volumes[-19:-7]
+    recent_volumes = volumes[-6:]
+    avg_prior = sum(prior_volumes) / len(prior_volumes) if prior_volumes else 0
+    volume_ratio = (sum(recent_volumes) / len(recent_volumes) / avg_prior
+                    if avg_prior > 0 else 0)
+    ema20 = calculate_ema(closes, 20)
+    breakout = px > max(highs[-13:-3]) and closes[-2] > max(highs[-13:-3])
+    trend = px > ema20 and px > vwap and day_pct >= 0.35
+    confirmed = (trend and relative >= 0.30 and last30 >= 0.20
+                 and volume_ratio >= 1.15 and range_position >= 0.75
+                 and last30 <= 2.5 and day_pct <= 5.0)
+    models = []
+    if confirmed:
+        models.append('V3_TREND_CONTINUATION')
+        if breakout:
+            models.append('V3_CONFIRMED_BREAKOUT')
+    return {'symbol': symbol, 'price': round(px, 2),
+            'change_pct': round(day_pct, 2), 'last30_pct': round(last30, 2),
+            'relative_pct': round(relative, 2), 'vwap': round(vwap, 2),
+            'volume_ratio': round(volume_ratio, 2),
+            'range_position': round(range_position, 3),
+            'ema20_5m': round(ema20, 2), 'models': models,
+            'eligible': confirmed, 'breakout': breakout}
 
 
 def _overnight_pre_db(op, day, payload=None):
@@ -10300,12 +10320,16 @@ async def _overnight_worker(day):
             return 100*(float(bars[-1]['close'])/float(bars[0]['open'])-1)
         spy, qqq = day_change('SPY'), day_change('QQQ')
         rows = [_overnight_features(s, bars_by_symbol[s], spy, qqq) for s in finalists]
-        picks = sorted(rows,
-                       key=lambda r: (len(r['models']), r['relative_pct']), reverse=True)[:4]
+        # No forced picks. Market weakness = no overnight signal.
+        market_ok = spy >= 0.0 and qqq >= 0.0
+        picks = (sorted((r for r in rows if r['eligible']),
+                        key=lambda r: (r['breakout'], r['relative_pct'],
+                                       r['volume_ratio']), reverse=True)[:3]
+                 if market_ok else [])
         now = _overnight_clock()
         if now.date().isoformat() != day or now.hour != 15 or now.minute > 24:
             raise RuntimeError('Delivery deadline missed; stale signals NOT sent')
-        message = (f'📊 DAILY OVERNIGHT V2 | PAPER ONLY\n{day} 15:{now.minute:02d} New York\n'
+        message = (f'📊 DAILY OVERNIGHT V3 STRONG SELECT | PAPER ONLY\n{day} 15:{now.minute:02d} New York\n'
                    f'On tarama: {pre["scanned_count"]} hisse | Son kontrol: {len(finalists)} aday\n'
                    'Alis: bugun kapanistan once | Planli satis: sonraki islem gunu 15:15–15:55 NY\n'
                    'Veri: 5 dakikalik mum; fiyatlar anlik emir fiyati degildir.\n'
@@ -10314,10 +10338,10 @@ async def _overnight_worker(day):
             for rank, r in enumerate(picks, start=1):
                 message += (f"{rank}. {r['symbol']} | ${r['price']:.2f} | Gun {r['change_pct']:+.2f}% | "
                             f"Son30dk {r['last30_pct']:+.2f}% | Goreli {r['relative_pct']:+.2f}%\n"
-                            f"Modeller: {', '.join(r['models']) if r['models'] else 'Teyit yok - sadece izleme'}\n\n")
+                            f"Modeller: {', '.join(r['models'])} | Hacim {r['volume_ratio']:.2f}x\n\n")
         else:
             message += 'Bugun uygun sinyal YOK. Islem yapmama secenegi korunur.\n'
-        message += '\nSiralama 4 adaylik izleme listesidir; model teyidi olmayanlar alis sinyali DEGILDIR. Otomatik emir yoktur. Gece gap riski vardir.'
+        message += '\nV3 sadece teyitli 0-3 aday gosterir. Stratejinin ustunlugu henuz kanitlanmadi. Otomatik emir yoktur. Gece gap riski vardir.'
         async with httpx.AsyncClient(timeout=12) as client:
             resp = await client.post(f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage',
                                      json={'chat_id': TELEGRAM_CHAT_ID, 'text': message})
@@ -10328,7 +10352,7 @@ async def _overnight_worker(day):
         result = {'status': 'sent', 'day': day, 'telegram_message_id': ack['result']['message_id'],
                   'sent_at_ny': _overnight_clock().isoformat(), 'picks': picks,
                   'universe_count': pre['universe_count'], 'scanned_count': pre['scanned_count'],
-                  'finalists': list(finalists)}
+                  'finalists': list(finalists), 'strategy': 'V3_STRONG_SELECT', 'market_ok': market_ok, 'all_rows': rows}
         await asyncio.to_thread(_overnight_db, 'sent', day, result)
         _OVERNIGHT_STATE['last_result'] = result
     except Exception as exc:
