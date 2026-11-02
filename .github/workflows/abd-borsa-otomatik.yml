@@ -3,8 +3,7 @@ name: ABD Borsa Otomatik Tarama
 
 on:
   schedule:
-   - cron: "3,13,23,33,43,53 17-21 * * 1-5"
-   
+    - cron: "3,13,23,33,43,53 17-21 * * 1-5"
   workflow_dispatch:
 
 permissions:
