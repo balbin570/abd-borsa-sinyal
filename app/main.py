@@ -10392,8 +10392,8 @@ async def overnight_run(request: Request):
     if not key or not secrets.compare_digest(supplied, key):
         raise HTTPException(status_code=401, detail='Unauthorized')
     now = _overnight_clock()
-    if now.weekday() >= 5 or now.hour != 15 or not (0 <= now.minute <= 20):
-        raise HTTPException(status_code=409, detail='Final scan outside New York 15:00-15:20 window; no stale Telegram signal sent')
+    if now.weekday() >= 5 or now.hour != 15 or not (0 <= now.minute <= 50):
+        raise HTTPException(status_code=409, detail='Final scan outside New York 15:00-15:50 window; no stale Telegram signal sent')
     if not TWELVE_DATA_API_KEY or not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID or not os.getenv('DATABASE_URL'):
         raise HTTPException(status_code=503, detail='Required settings missing')
     async with _OVERNIGHT_LOCK:
