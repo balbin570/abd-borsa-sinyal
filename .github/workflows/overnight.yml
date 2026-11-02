@@ -3,7 +3,7 @@ name: Overnight Telegram pre-close
 
 on:
   schedule:
-    # UTC windows cover 15:00 New York in both EDT and EST.
+    # Both daylight-saving and standard-time UTC windows
     - cron: '0,5,10 19,20 * * 1-5'
   workflow_dispatch:
     inputs:
@@ -16,22 +16,75 @@ on:
           - telegram-test
           - overnight-run
 
+concurrency:
+  group: overnight-preclose
+  cancel-in-progress: false
+
 jobs:
   trigger:
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     steps:
+      - name: Check New York trading time
+        id: clock
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "execute=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          NY_DAY=$(TZ=America/New_York date +%u)
+          NY_TIME=$(TZ=America/New_York date +%H%M)
+
+          if [ "$NY_DAY" -le 5 ] &&
+             [ "$NY_TIME" -ge 1455 ] &&
+             [ "$NY_TIME" -le 1515 ]; then
+            echo "execute=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "execute=false" >> "$GITHUB_OUTPUT"
+            echo "Outside New York execution window"
+          fi
+
       - name: Call overnight endpoint
+        if: steps.clock.outputs.execute == 'true'
         env:
           CRON_KEY: ${{ secrets.OVERNIGHT_CRON_KEY }}
           EVENT_NAME: ${{ github.event_name }}
           MANUAL_ACTION: ${{ inputs.action }}
         run: |
           set -euo pipefail
-          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$MANUAL_ACTION" = "telegram-test" ]; then
-            URL='https://abd-borsa-sinyal-eplj.onrender.com/overnight/test-telegram'
-          else
-            URL='https://abd-borsa-sinyal-eplj.onrender.com/overnight/run'
+
+          if [ -z "$CRON_KEY" ]; then
+            echo "OVERNIGHT_CRON_KEY is missing"
+            exit 1
           fi
-          curl --fail --show-error --silent --max-time 25 \
-            -X POST -H "X-Automation-Key: $CRON_KEY" \
+
+          BASE_URL="https://abd-borsa-sinyal-eplj.onrender.com"
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] &&
+             [ "$MANUAL_ACTION" = "telegram-test" ]; then
+            URL="$BASE_URL/overnight/test-telegram"
+          else
+            URL="$BASE_URL/overnight/run"
+          fi
+
+          echo "Calling overnight endpoint"
+
+          curl \
+            --fail \
+            --show-error \
+            --silent \
+            --connect-timeout 15 \
+            --max-time 60 \
+            --retry 5 \
+            --retry-delay 10 \
+            --retry-max-time 360 \
+            --retry-all-errors \
+            -X POST \
+            -H "X-Automation-Key: $CRON_KEY" \
             "$URL"
+
+          echo "Overnight endpoint accepted request"
