@@ -3,13 +3,8 @@ name: ABD Borsa Otomatik Tarama
 
 on:
   schedule:
-    # UTC saatleri. Yaz/kis saati Python tarafinda kontrol edilir.
-    - cron: "47,57 17 * * 1-5"
-    - cron: "7,17,27,37,47 18 * * 1-5"
-    - cron: "7,17,27,37,47 19 * * 1-5"
-    - cron: "7,17,27,37,47 20 * * 1-5"
-    - cron: "7,17,27,37,47 21 * * 1-5"
-
+   - cron: "3,13,23,33,43,53 17-21 * * 1-5"
+   
   workflow_dispatch:
 
 permissions:
