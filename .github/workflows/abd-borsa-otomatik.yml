@@ -3,7 +3,13 @@ name: ABD Borsa Otomatik Tarama
 
 on:
   schedule:
-    - cron: "*/10 17-21 * * 1-5"
+    # UTC saatleri. Yaz/kis saati Python tarafinda kontrol edilir.
+    - cron: "47,57 17 * * 1-5"
+    - cron: "7,17,27,37,47 18 * * 1-5"
+    - cron: "7,17,27,37,47 19 * * 1-5"
+    - cron: "7,17,27,37,47 20 * * 1-5"
+    - cron: "7,17,27,37,47 21 * * 1-5"
+
   workflow_dispatch:
 
 permissions:
@@ -17,16 +23,18 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
     steps:
-      - name: Tarama ve durum kontrolu
+      - name: Overnight V3 otomatik tarama
         env:
           CRON_KEY: ${{ secrets.OVERNIGHT_CRON_KEY }}
           BASE_URL: https://abd-borsa-sinyal-eplj.onrender.com
+
         run: |
           python3 - <<'PY'
           import os
-          import time
           import json
+          import time
           import urllib.request
           from datetime import datetime
           from zoneinfo import ZoneInfo
@@ -35,9 +43,11 @@ jobs:
           print("New York:", ny.isoformat())
 
           if ny.weekday() >= 5:
+              print("Hafta sonu, islem yok.")
               raise SystemExit(0)
 
           minute = ny.hour * 60 + ny.minute
+
           if 13*60+45 <= minute <= 14*60+50:
               endpoint = "/overnight/prescreen/run"
           elif 15*60+5 <= minute <= 15*60+50:
@@ -48,9 +58,11 @@ jobs:
 
           key = os.environ.get("CRON_KEY")
           if not key:
-              raise RuntimeError("GitHub secret eksik")
+              raise RuntimeError("OVERNIGHT_CRON_KEY eksik")
 
-          url = os.environ["BASE_URL"] + endpoint
+          base = os.environ["BASE_URL"]
+          url = base + endpoint
+
           for attempt in range(1, 4):
               try:
                   request = urllib.request.Request(
@@ -59,14 +71,19 @@ jobs:
                       headers={"X-Automation-Key": key},
                       method="POST"
                   )
+
                   with urllib.request.urlopen(
                       request, timeout=45
                   ) as response:
-                      print("HTTP:", response.status)
-                      if response.status not in (200, 202, 204):
-                          raise RuntimeError("Beklenmeyen yanit")
+                      status = response.status
+                      print("HTTP:", status)
+
+                  if status not in (200, 202, 204):
+                      raise RuntimeError("Beklenmeyen HTTP yaniti")
+
                   print("Tetikleme basarili:", endpoint)
                   break
+
               except Exception as exc:
                   print("Deneme:", attempt, str(exc))
                   if attempt == 3:
@@ -78,10 +95,15 @@ jobs:
               if "prescreen" in endpoint
               else "/overnight/status"
           )
+
           with urllib.request.urlopen(
-              os.environ["BASE_URL"] + status_path,
+              base + status_path,
               timeout=30
           ) as response:
               result = json.load(response)
-          print("Durum:", json.dumps(result, ensure_ascii=False)[:1500])
+
+          print(
+              "Durum:",
+              json.dumps(result, ensure_ascii=False)[:1500]
+          )
           PY
