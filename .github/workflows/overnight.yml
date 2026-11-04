@@ -1,90 +1,76 @@
-
-name: Overnight Telegram pre-close
+name: Overnight V3 direct GitHub Actions
 
 on:
   schedule:
-    # Both daylight-saving and standard-time UTC windows
-    - cron: '0,5,10 19,20 * * 1-5'
+    # UTC; Python checks America/New_York to handle daylight saving time.
+    - cron: '40 17,18 * * 1-5'  # 13:40 NY (EDT/EST)
+    - cron: '5,10 19,20 * * 1-5'  # final NY 15:05 / 15:10
   workflow_dispatch:
     inputs:
       action:
-        description: 'Manual action'
+        description: 'Action to execute'
         required: true
-        default: 'telegram-test'
         type: choice
+        default: telegram-test
         options:
           - telegram-test
-          - overnight-run
+          - prescreen
+          - final
+
+permissions:
+  contents: read
 
 concurrency:
-  group: overnight-preclose
+  group: overnight-v3-direct
   cancel-in-progress: false
 
 jobs:
-  trigger:
+  overnight:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 75
     steps:
-      - name: Check New York trading time
-        id: clock
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Select mode using NY clock
+        id: choose
         env:
-          EVENT_NAME: ${{ github.event_name }}
-        run: |
-          set -euo pipefail
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            echo "execute=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          NY_DAY=$(TZ=America/New_York date +%u)
-          NY_TIME=$(TZ=America/New_York date +%H%M)
-
-          if [ "$NY_DAY" -le 5 ] &&
-             [ "$NY_TIME" -ge 1455 ] &&
-             [ "$NY_TIME" -le 1515 ]; then
-            echo "execute=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "execute=false" >> "$GITHUB_OUTPUT"
-            echo "Outside New York execution window"
-          fi
-
-      - name: Call overnight endpoint
-        if: steps.clock.outputs.execute == 'true'
-        env:
-          CRON_KEY: ${{ secrets.OVERNIGHT_CRON_KEY }}
           EVENT_NAME: ${{ github.event_name }}
           MANUAL_ACTION: ${{ inputs.action }}
         run: |
-          set -euo pipefail
-
-          if [ -z "$CRON_KEY" ]; then
-            echo "OVERNIGHT_CRON_KEY is missing"
-            exit 1
-          fi
-
-          BASE_URL="https://abd-borsa-sinyal-eplj.onrender.com"
-
-          if [ "$EVENT_NAME" = "workflow_dispatch" ] &&
-             [ "$MANUAL_ACTION" = "telegram-test" ]; then
-            URL="$BASE_URL/overnight/test-telegram"
+          python - <<'PY'
+          import os
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          now = datetime.now(ZoneInfo('America/New_York'))
+          minute = now.hour * 60 + now.minute
+          mode = ''
+          if os.environ['EVENT_NAME'] == 'workflow_dispatch':
+              mode = os.environ['MANUAL_ACTION']
+          elif now.weekday() < 5:
+              if 13*60+40 <= minute <= 14*60+10:
+                  mode = 'prescreen'
+              elif 15*60+5 <= minute <= 15*60+20:
+                  mode = 'final'
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'mode={mode}\n')
+          print('New York:', now.isoformat(), 'mode:', mode or 'skip')
+          PY
+      - name: Run existing Overnight V3 directly
+        if: steps.choose.outputs.mode != ''
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MODE: ${{ steps.choose.outputs.mode }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" = 'workflow_dispatch' ]; then
+            python scripts/overnight_actions.py "$MODE" --manual
           else
-            URL="$BASE_URL/overnight/run"
+            python scripts/overnight_actions.py "$MODE"
           fi
-
-          echo "Calling overnight endpoint"
-
-          curl \
-            --fail \
-            --show-error \
-            --silent \
-            --connect-timeout 15 \
-            --max-time 60 \
-            --retry 5 \
-            --retry-delay 10 \
-            --retry-max-time 360 \
-            --retry-all-errors \
-            -X POST \
-            -H "X-Automation-Key: $CRON_KEY" \
-            "$URL"
-
-          echo "Overnight endpoint accepted request"
