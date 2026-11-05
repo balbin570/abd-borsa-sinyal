@@ -10332,7 +10332,11 @@ async def _overnight_worker(day):
             bars = bars_by_symbol[symbol]
             return 100*(float(bars[-1]['close'])/float(bars[0]['open'])-1)
         spy, qqq = day_change('SPY'), day_change('QQQ')
-        rows = [_overnight_features(s, bars_by_symbol[s], spy, qqq) for s in finalists]
+        rows = [
+            _overnight_features(s, bars_by_symbol[s], spy, qqq)
+            for s in finalists
+            if s in bars_by_symbol
+        ]
         # No forced picks. Market weakness = no overnight signal.
         market_ok = spy >= 0.0 and qqq >= 0.0
         picks = (sorted((r for r in rows if r['eligible']),
