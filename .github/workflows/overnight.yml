@@ -43,6 +43,7 @@ jobs:
         id: choose
         env:
           EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_SCHEDULE: ${{ github.event.schedule }}
           MANUAL_ACTION: ${{ inputs.action }}
         run: |
           python - <<'PY'
@@ -50,14 +51,18 @@ jobs:
           from datetime import datetime
           from zoneinfo import ZoneInfo
           now = datetime.now(ZoneInfo('America/New_York'))
+          print('SCHEDULE_TRIGGER:', os.environ.get('GITHUB_EVENT_SCHEDULE', 'manual'), flush=True)
           minute = now.hour * 60 + now.minute
           mode = ''
           if os.environ['EVENT_NAME'] == 'workflow_dispatch':
               mode = os.environ['MANUAL_ACTION']
-          elif now.weekday() < 5:
-              if 13*60+40 <= minute <= 14*60+10:
+          elif os.environ['EVENT_NAME'] == 'schedule':
+              trigger = os.environ.get('GITHUB_EVENT_SCHEDULE', '')
+              winter = now.utcoffset().total_seconds() == -5 * 3600
+              expected_hour = 18 if winter else 17
+              if trigger == f'40 {expected_hour} * * 1-5':
                   mode = 'prescreen'
-              elif 15*60+5 <= minute <= 15*60+20:
+              elif trigger == f'5 {expected_hour + 2} * * 1-5':
                   mode = 'final'
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
               f.write(f'mode={mode}\n')
