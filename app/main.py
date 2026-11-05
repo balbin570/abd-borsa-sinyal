@@ -10082,7 +10082,7 @@ async def _overnight_bars(symbol):
     today = _overnight_clock().date().isoformat()
     bars = [x for x in bars if x['datetime'][:10] == today]
     if len(bars) < 20:
-        raise RuntimeError(f'{symbol}: insufficient current-session bars')
+        raise RuntimeError(f'{symbol}: insufficient current-session bars; count={len(bars)}, today={today}, latest_returned={data["values"][0]["datetime"]}')
     latest = bars[-1]['datetime']
     # Reject delayed / stale market data. Date/time from provider is exchange-local.
     latest_dt = datetime.fromisoformat(latest).replace(tzinfo=_OVERNIGHT_NY)
