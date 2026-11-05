@@ -10312,9 +10312,22 @@ async def _overnight_worker(day):
         if len(finalists) != _OVERNIGHT_FINALISTS:
             raise RuntimeError('Pre-screen shortlist incomplete')
         bars_by_symbol = {}
-        for symbol in ('SPY', 'QQQ') + finalists:
+
+        for symbol in ('SPY', 'QQQ'):
             bars_by_symbol[symbol] = await _overnight_bars(symbol)
             await asyncio.sleep(8.2)
+
+        skipped_symbols = []
+        for symbol in finalists:
+            try:
+                bars_by_symbol[symbol] = await _overnight_bars(symbol)
+            except (RuntimeError, httpx.HTTPError) as exc:
+                skipped_symbols.append(symbol)
+                print(f'OVERNIGHT V3 SKIPPED {symbol}: {exc}', flush=True)
+            await asyncio.sleep(8.2)
+
+        if not any(s in bars_by_symbol for s in finalists):
+            raise RuntimeError('No finalists with valid current-session bars')
         def day_change(symbol):
             bars = bars_by_symbol[symbol]
             return 100*(float(bars[-1]['close'])/float(bars[0]['open'])-1)
