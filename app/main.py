@@ -10071,7 +10071,7 @@ def _overnight_db(op, day, payload=None):
 
 
 async def _overnight_bars(symbol):
-    params = {'symbol': symbol, 'interval': '5min', 'outputsize': 80, 'apikey': TWELVE_DATA_API_KEY}
+    params = {'symbol': symbol, 'interval': '5min', 'outputsize': 80, 'apikey': TWELVE_DATA_API_KEY, 'timezone': 'America/New_York'}
     async with httpx.AsyncClient(timeout=12) as client:
         response = await client.get('https://api.twelvedata.com/time_series', params=params)
         response.raise_for_status()
