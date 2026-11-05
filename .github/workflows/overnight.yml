@@ -2,9 +2,13 @@ name: Overnight V3 direct GitHub Actions
 
 on:
   schedule:
-    # UTC; Python checks America/New_York to handle daylight saving time.
-    - cron: '40 17,18 * * 1-5'  # 13:40 NY (EDT/EST)
-    - cron: '5,10 19,20 * * 1-5'  # final NY 15:05 / 15:10
+    # Prescreen: NY 13:40, yaz ve kis saati
+    - cron: '40 17 * * 1-5'
+    - cron: '40 18 * * 1-5'
+
+    # Final: NY 15:05, yaz ve kis saati
+    - cron: '5 19 * * 1-5'
+    - cron: '5 20 * * 1-5'
   workflow_dispatch:
     inputs:
       action:
