@@ -1,0 +1,52 @@
+name: US S&P 500 Top 5 - forward paper portfolio
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '45 22 * * 1-5'
+  push:
+    paths:
+      - paper_portfolio/top5_paper.py
+      - .github/workflows/us-sp500-top5-paper.yml
+permissions:
+  contents: write
+concurrency:
+  group: us-sp500-top5-forward-paper
+  cancel-in-progress: false
+jobs:
+  paper:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install public screener and market data dependencies
+        run: |
+          git clone --depth 1 https://github.com/KarneeshkarV/screener.git external-screener
+          python -m pip install --quiet './external-screener[prices]' lxml html5lib yfinance
+      - name: Update forward-only paper portfolio
+        run: python paper_portfolio/top5_paper.py
+      - name: Save daily paper ledger to GitHub
+        run: |
+          if git diff --quiet -- paper_portfolio/state.json paper_portfolio/latest_report.md && [ -z "$(git ls-files --others --exclude-standard paper_portfolio/state.json paper_portfolio/latest_report.md)" ]; then
+            echo "No new market session to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add paper_portfolio/state.json paper_portfolio/latest_report.md
+          git commit -m "Paper portfolio update"
+          git push
+      - name: Upload current paper portfolio snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: us-sp500-top5-paper-portfolio
+          path: |
+            paper_portfolio/state.json
+            paper_portfolio/latest_report.md
+          if-no-files-found: warn
+          retention-days: 90
