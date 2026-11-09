@@ -1,0 +1,125 @@
+name: US SP500 RS Breakout paper scan
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 22 * * 1-5'
+  push:
+    paths:
+      - .github/workflows/us-sp500-rs-paper.yml
+permissions:
+  contents: read
+concurrency:
+  group: us-sp500-rs-paper
+  cancel-in-progress: false
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          git clone --depth 1 https://github.com/KarneeshkarV/screener.git external-screener
+          python -m pip install --quiet './external-screener[prices]' lxml html5lib yfinance
+      - name: Scan S&P 500 with both volume thresholds
+        shell: bash
+        run: |
+          python - <<'PY'
+          import concurrent.futures, csv, io, json, math, os, time
+          from datetime import datetime, timedelta
+          from zoneinfo import ZoneInfo
+          import pandas as pd
+          import requests
+          import yfinance as yf
+          from screener.rs_breakout import normalize_bars, build_signal_frame
+          now=datetime.now(ZoneInfo("America/New_York"))
+          as_of=now.date()
+          if now.hour<17:as_of-=timedelta(days=1)
+          while as_of.weekday()>=5:as_of-=timedelta(days=1)
+          # Wikipedia's S&P 500 constituent table is public; fail rather than silently scan a partial universe.
+          url="https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+          resp=requests.get(url,headers={"User-Agent":"Mozilla/5.0 (compatible; ResearchScanner/1.0)"},timeout=30)
+          resp.raise_for_status()
+          tables=pd.read_html(io.StringIO(resp.text))
+          constituents=next(t for t in tables if "Symbol" in t.columns and len(t)>450)
+          symbols=sorted(set(str(s).strip().replace(".","-") for s in constituents["Symbol"].dropna()))
+          if len(symbols)<450:raise RuntimeError(f"Constituent universe too small: {len(symbols)}")
+          print(f"Universe {len(symbols)} symbols; data cutoff {as_of}",flush=True)
+          def fetch(symbol):
+              for attempt in range(3):
+                  try:
+                      df=yf.Ticker(symbol).history(start=str(as_of-timedelta(days=220)),end=str(as_of+timedelta(days=1)),auto_adjust=True)
+                      if df is None or df.empty:raise ValueError("Empty OHLCV")
+                      df.columns=[str(c).lower() for c in df.columns]
+                      return symbol,normalize_bars(df,as_of),""
+                  except Exception as e:
+                      err=f"{type(e).__name__}: {str(e)[:90]}"
+                      time.sleep(0.5*(attempt+1))
+              return symbol,pd.DataFrame(),err
+          _,spy,spyerr=fetch("SPY")
+          if len(spy)<65:raise RuntimeError(f"SPY history unavailable: {spyerr}")
+          rows=[]
+          def evaluate(symbol):
+              sym,df,error=fetch(symbol)
+              row={"symbol":sym,"date":"","bars":len(df),"rs55":None,"volume_ratio":None,"close":None,"supertrend":None,"previous_week_high":None,"rs_pass":False,"trend_pass":False,"breakout_pass":False,"signal_1_5":False,"signal_1_2":False,"status":"OK"}
+              if len(df)<65:
+                  row["status"]="INSUFFICIENT_DATA: "+error
+                  return row
+              try:
+                  p=build_signal_frame(df,spy["close"],require_delivery=False)
+                  v=p.iloc[-1]
+                  def num(key):
+                      x=v.get(key)
+                      try:
+                          x=float(x)
+                          return round(x,5) if math.isfinite(x) else None
+                      except (TypeError,ValueError):return None
+                  row.update(date=str(p.index[-1].date()),rs55=num("rs_55"),volume_ratio=num("volume_ratio"),close=num("close"),supertrend=num("supertrend_value"),previous_week_high=num("previous_week_high"))
+                  row["rs_pass"]=row["rs55"] is not None and row["rs55"]>0
+                  row["trend_pass"]=row["close"] is not None and row["supertrend"] is not None and row["close"]>row["supertrend"]
+                  row["breakout_pass"]=row["close"] is not None and row["previous_week_high"] is not None and row["close"]>row["previous_week_high"]
+                  base=row["rs_pass"] and row["trend_pass"] and row["breakout_pass"]
+                  row["signal_1_5"]=base and row["volume_ratio"] is not None and row["volume_ratio"]>=1.5
+                  row["signal_1_2"]=base and row["volume_ratio"] is not None and row["volume_ratio"]>=1.2
+                  if any(row[k] is None for k in ("rs55","volume_ratio","supertrend")):row["status"]="INDICATOR_MISSING"
+                  if row["date"]!=str(spy.index[-1].date()):row["status"]="STALE_DATE"
+              except Exception as e:row["status"]=f"ERROR {type(e).__name__}: {str(e)[:90]}"
+              if row["status"]!="OK":
+                  row["signal_1_5"]=False
+                  row["signal_1_2"]=False
+              return row
+          with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+              for i,r in enumerate(pool.map(evaluate,symbols),1):
+                  rows.append(r)
+                  if i%50==0:print(f"Scanned {i}/{len(symbols)}",flush=True)
+          valid=sum(r["status"]=="OK" for r in rows)
+          print(f"Valid {valid}/{len(rows)}",flush=True)
+          def matches(key):return sorted((r for r in rows if r[key]),key=lambda r:r["volume_ratio"],reverse=True)
+          result={"cutoff":str(as_of),"latest_spy_bar":str(spy.index[-1].date()),"benchmark":"SPY","universe_size":len(symbols),"valid":valid,"original_1_5":matches("signal_1_5"),"alternative_1_2":matches("signal_1_2"),"all":rows}
+          with open("sp500_rs_paper.json","w") as f:json.dump(result,f,indent=2)
+          with open("sp500_rs_paper.csv","w",newline="") as f:
+              writer=csv.DictWriter(f,fieldnames=list(rows[0]));writer.writeheader();writer.writerows(rows)
+          lines=["## S&P 500 RS Breakout | Paper signals","",f"Cutoff: {as_of} | Last SPY bar: {spy.index[-1].date()} | Valid: {valid}/{len(rows)} | No orders",""]
+          for key,title in (("signal_1_5","Original (volume >= 1.5)"),("signal_1_2","Alternative (volume >= 1.2)")):
+              hits=matches(key)
+              lines.extend([f"### {title}: {len(hits)} matches","","| Ticker | Date | Close | RS55 | Volume ratio |","|---|---|---:|---:|---:|"])
+              for r in hits:lines.append(f"| {r['symbol']} | {r['date']} | {r['close']} | {r['rs55']} | {r['volume_ratio']} |")
+              lines.append("")
+          lines+=["### Data quality","",f"- Valid: {valid}/{len(rows)}",f"- Missing/invalid: {len(rows)-valid}","", "Signals are technical matches only, not buy recommendations or evidence of profitability."]
+          summary="\n".join(lines)+"\n"
+          print(summary)
+          with open(os.environ["GITHUB_STEP_SUMMARY"],"a") as f:f.write(summary)
+          if valid<round(len(rows)*0.9):raise RuntimeError(f"Too few valid constituents: {valid}/{len(rows)}")
+          PY
+      - name: Upload paper results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sp500-rs-paper-results
+          path: |
+            sp500_rs_paper.json
+            sp500_rs_paper.csv
+          if-no-files-found: warn
+          retention-days: 30
