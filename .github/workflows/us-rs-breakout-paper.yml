@@ -1,0 +1,61 @@
+name: US RS Breakout - paper signals
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 22 * * 1-5'
+  push:
+    paths:
+      - .github/workflows/us-rs-breakout-paper.yml
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Download public scanner source
+        run: git clone --depth 1 https://github.com/KarneeshkarV/screener.git external-screener
+      - name: Install scanner with Yahoo Finance support
+        run: python -m pip install --quiet './external-screener[prices]'
+      - name: Run paper-only RS Breakout on 20 US stocks
+        shell: bash
+        run: |
+          set -o pipefail
+          screener rs-breakout -m us --tickers AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,AMD,AVGO,NFLX,CRM,ORCL,PLTR,UBER,COIN,HOOD,JPM,V,MA,COST --history-days 220 --refresh --json rs_breakout_us.json --md rs_breakout_us.md 2>&1 | tee scan.log
+      - name: Publish scan summary
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, pathlib, os
+          out = pathlib.Path(os.environ["GITHUB_STEP_SUMMARY"])
+          p = pathlib.Path("rs_breakout_us.json")
+          with out.open("a") as f:
+              f.write("## US RS Breakout - paper only\n\n")
+              if not p.exists():
+                  f.write("Scanner did not produce JSON. Check scan logs. No trading orders were placed.\n")
+              else:
+                  data = json.loads(p.read_text())
+                  f.write(f"**Date:** {data.get('as_of')} | **Benchmark:** {data.get('benchmark')}\n\n")
+                  for bucket in ("full", "relaxed"):
+                      rows = data.get(bucket, [])
+                      f.write(f"### {bucket.title()} signals ({len(rows)})\n\n")
+                      f.write("| Ticker | Close | RS55 | Volume ratio |\n|---|---:|---:|---:|\n")
+                      for row in rows:
+                          f.write(f"| {row.get('symbol')} | {row.get('close')} | {row.get('rs_55')} | {row.get('volume_ratio')} |\n")
+                      f.write("\n")
+          PY
+      - name: Save output files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: us-rs-breakout-paper-output
+          path: |
+            rs_breakout_us.json
+            rs_breakout_us.md
+            scan.log
+          if-no-files-found: warn
+          retention-days: 30
