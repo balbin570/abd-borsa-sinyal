@@ -1,0 +1,34 @@
+name: Yahoo Finance data smoke test
+on:
+  push:
+    paths:
+      - .github/workflows/yahoo-data-smoke-test.yml
+  workflow_dispatch:
+jobs:
+  verify-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install yfinance
+        run: python -m pip install --quiet 'yfinance>=0.2.40'
+      - name: Fetch daily OHLCV without placing orders
+        shell: bash
+        run: |
+          python - <<'PY'
+          import yfinance as yf
+          import sys
+          ok = 0
+          for ticker in ("AAPL", "MSFT", "NVDA", "SPY"):
+              try:
+                  df = yf.download(ticker, period="10d", interval="1d", progress=False, auto_adjust=True, threads=False)
+                  valid = not df.empty and len(df) >= 3 and all(x in df.columns.get_level_values(0) for x in ("Open", "High", "Low", "Close", "Volume"))
+                  print(f"{ticker}: {'OK' if valid else 'NO_DATA'}; bars={len(df)}; last={str(df.index[-1].date()) if not df.empty else '-'}", flush=True)
+                  ok += bool(valid)
+              except Exception as exc:
+                  print(f"{ticker}: ERROR {type(exc).__name__}: {exc}", flush=True)
+          print(f"RESULT: {ok}/4 tickers with valid daily OHLCV", flush=True)
+          sys.exit(0 if ok == 4 else 1)
+          PY
