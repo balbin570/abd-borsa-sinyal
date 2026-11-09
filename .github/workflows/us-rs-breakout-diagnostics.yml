@@ -1,0 +1,89 @@
+name: US RS Breakout - filter diagnostics
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/us-rs-breakout-diagnostics.yml
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Get public scanner and dependencies
+        run: |
+          git clone --depth 1 https://github.com/KarneeshkarV/screener.git external-screener
+          python -m pip install --quiet './external-screener[prices]'
+      - name: Check each RS Breakout filter for all 20 stocks
+        shell: bash
+        run: |
+          python - <<'PY'
+          import csv, json, math, os
+          from datetime import date
+          import pandas as pd
+          from screener.backtester.data import build_price_fetcher
+          from screener.rs_breakout import fetch_price_data, normalize_bars, build_signal_frame
+          symbols = "AAPL MSFT NVDA AMZN GOOGL META TSLA AMD AVGO NFLX CRM ORCL PLTR UBER COIN HOOD JPM V MA COST".split()
+          today = date.today()
+          fetcher = build_price_fetcher(refresh=True)
+          bars, benchmark = fetch_price_data(symbols, "us", today, fetcher, benchmark="SPY", history_days=220, max_workers=4)
+          spy = normalize_bars(benchmark, today)
+          if spy.empty or len(spy) < 60:
+              raise RuntimeError("SPY benchmark data missing or too short")
+          rows = []
+          for symbol in symbols:
+              frame = normalize_bars(bars.get(symbol, pd.DataFrame()), today)
+              row = {"symbol":symbol, "date":"", "bars":len(frame), "rs55":None, "close":None, "supertrend":None, "volume_ratio":None, "previous_week_high":None, "rs_pass":False, "trend_pass":False, "volume_pass":False, "breakout_pass":False, "base_pass":False, "full_pass":False, "status":"OK"}
+              if len(frame) < 60:
+                  row["status"] = "INSUFFICIENT_DATA"
+              else:
+                  try:
+                      prepared = build_signal_frame(frame, spy["close"], require_delivery=False)
+                      last = prepared.iloc[-1]
+                      def num(name):
+                          x = last.get(name)
+                          return round(float(x),4) if x is not None and math.isfinite(float(x)) else None
+                      row.update(date=str(prepared.index[-1].date()), rs55=num("rs_55"), close=num("close"), supertrend=num("supertrend_value"), volume_ratio=num("volume_ratio"), previous_week_high=num("previous_week_high"))
+                      row["rs_pass"] = row["rs55"] is not None and row["rs55"] > 0
+                      row["trend_pass"] = row["close"] is not None and row["supertrend"] is not None and row["close"] > row["supertrend"]
+                      row["volume_pass"] = row["volume_ratio"] is not None and row["volume_ratio"] >= 1.5
+                      row["breakout_pass"] = row["previous_week_high"] is not None and row["close"] > row["previous_week_high"]
+                      row["base_pass"] = row["rs_pass"] and row["trend_pass"] and row["volume_pass"]
+                      row["full_pass"] = row["base_pass"] and row["breakout_pass"]
+                      if any(row[k] is None for k in ("rs55","supertrend","volume_ratio")):
+                          row["status"] = "INDICATOR_MISSING"
+                  except Exception as exc:
+                      row["status"] = f"ERROR: {type(exc).__name__}: {str(exc)[:120]}"
+              rows.append(row)
+              print(f"{symbol}: {row['status']} bars={row['bars']} RS={row['rs_pass']} trend={row['trend_pass']} volume={row['volume_pass']} breakout={row['breakout_pass']} full={row['full_pass']}", flush=True)
+          with open("rs_diagnostics.json","w") as f: json.dump({"as_of":str(today),"benchmark":"SPY","rows":rows},f,indent=2)
+          with open("rs_diagnostics.csv","w",newline="") as f:
+              writer=csv.DictWriter(f,fieldnames=list(rows[0]));writer.writeheader();writer.writerows(rows)
+          def yes(x): return "YES" if x else "no"
+          lines=["## US RS Breakout - filter diagnostics","",f"Date: {today} | Benchmark: SPY | Paper only; no orders","", "| Symbol | Data | RS55 | Trend | Vol >= 1.5 | Week breakout | Full |","|---|---|---|---|---|---|---|"]
+          for r in rows:
+              lines.append(f"| {r['symbol']} | {r['status']} ({r['bars']} bars) | {yes(r['rs_pass'])} | {yes(r['trend_pass'])} | {yes(r['volume_pass'])} | {yes(r['breakout_pass'])} | {yes(r['full_pass'])} |")
+          lines += ["", "### Pass counts",""]
+          for k in ("rs_pass","trend_pass","volume_pass","breakout_pass","base_pass","full_pass"):
+              lines.append(f"- {k}: {sum(bool(r[k]) for r in rows)}/{len(rows)}")
+          lines += ["", "Note: Conditions use the latest downloaded daily bar, which can be incomplete while US markets are open."]
+          report="\n".join(lines)+"\n"
+          print(report)
+          with open(os.environ["GITHUB_STEP_SUMMARY"],"a") as f:f.write(report)
+          if sum(r["status"]=="OK" for r in rows)<15:
+              raise RuntimeError("Too many stocks have missing or invalid data; diagnostic is not reliable")
+          PY
+      - name: Upload detailed diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: us-rs-breakout-diagnostics
+          path: |
+            rs_diagnostics.json
+            rs_diagnostics.csv
+          if-no-files-found: warn
+          retention-days: 30
