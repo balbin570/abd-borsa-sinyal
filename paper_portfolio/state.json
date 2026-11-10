@@ -1,50 +1,55 @@
 {
   "version": 1,
   "initial_cash": 10000.0,
-  "cash": 10000.0,
-  "positions": [],
-  "pending": [
+  "cash": 650.096194,
+  "positions": [
     {
       "symbol": "APP",
+      "entry_date": "2026-11-09",
+      "entry_price": 387.709991,
+      "shares": 5,
+      "entry_cost": 1941.457782,
       "signal_date": "2026-11-06",
-      "rs55": 31.0832,
-      "volume_ratio": 2.2724,
-      "signal_close": 391.22,
-      "score": 35.628
-    },
-    {
-      "symbol": "VTRS",
-      "signal_date": "2026-11-06",
-      "rs55": 28.7396,
-      "volume_ratio": 1.6755,
-      "signal_close": 19.91,
-      "score": 32.0907
+      "signal_score": 35.628
     },
     {
       "symbol": "FISV",
+      "entry_date": "2026-11-09",
+      "entry_price": 63.099998,
+      "shares": 31,
+      "entry_cost": 1959.034103,
       "signal_date": "2026-11-06",
-      "rs55": 26.6133,
-      "volume_ratio": 1.3754,
-      "signal_close": 62.88,
-      "score": 29.3641
-    },
-    {
-      "symbol": "V",
-      "signal_date": "2026-11-06",
-      "rs55": 19.5587,
-      "volume_ratio": 1.2755,
-      "signal_close": 422.65,
-      "score": 22.1098
+      "signal_score": 29.3641
     },
     {
       "symbol": "HUM",
+      "entry_date": "2026-11-09",
+      "entry_price": 438.570007,
+      "shares": 4,
+      "entry_cost": 1756.911449,
       "signal_date": "2026-11-06",
-      "rs55": 18.1122,
-      "volume_ratio": 1.6894,
-      "signal_close": 433.74,
-      "score": 21.491
+      "signal_score": 21.491
+    },
+    {
+      "symbol": "V",
+      "entry_date": "2026-11-09",
+      "entry_price": 424.019989,
+      "shares": 4,
+      "entry_cost": 1698.624076,
+      "signal_date": "2026-11-06",
+      "signal_score": 22.1098
+    },
+    {
+      "symbol": "VTRS",
+      "entry_date": "2026-11-09",
+      "entry_price": 20.110001,
+      "shares": 99,
+      "entry_cost": 1993.876396,
+      "signal_date": "2026-11-06",
+      "signal_score": 32.0907
     }
   ],
+  "pending": [],
   "closed": [],
   "daily": [
     {
@@ -54,7 +59,15 @@
       "positions": 0,
       "pending": 5,
       "spy_close": 735.289978
+    },
+    {
+      "date": "2026-11-09",
+      "equity": 10079.25,
+      "cash": 650.1,
+      "positions": 5,
+      "pending": 0,
+      "spy_close": 752.690002
     }
   ],
-  "last_processed": "2026-11-06"
+  "last_processed": "2026-11-09"
 }
