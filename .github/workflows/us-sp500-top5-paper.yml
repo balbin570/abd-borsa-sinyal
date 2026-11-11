@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '45 22 * * 1-5'
+    - cron: '45 23 * * 1-5'
   push:
     paths:
       - paper_portfolio/top5_paper.py
@@ -20,6 +21,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: true
+          ref: main
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -31,13 +33,13 @@ jobs:
         run: python paper_portfolio/top5_paper.py
       - name: Save daily paper ledger to GitHub
         run: |
-          if git diff --quiet -- paper_portfolio/state.json paper_portfolio/latest_report.md && [ -z "$(git ls-files --others --exclude-standard paper_portfolio/state.json paper_portfolio/latest_report.md)" ]; then
+          if git diff --quiet -- paper_portfolio/state.json paper_portfolio/latest_report.md paper_portfolio/reports && [ -z "$(git ls-files --others --exclude-standard paper_portfolio/state.json paper_portfolio/latest_report.md paper_portfolio/reports)" ]; then
             echo "No new market session to commit"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add paper_portfolio/state.json paper_portfolio/latest_report.md
+          git add paper_portfolio/state.json paper_portfolio/latest_report.md paper_portfolio/reports
           git commit -m "Paper portfolio update"
           # A workflow/code change may land while prices are downloading.
           # Rebase only the ledger commit onto the new remote head.
@@ -65,5 +67,7 @@ jobs:
           path: |
             paper_portfolio/state.json
             paper_portfolio/latest_report.md
+            paper_portfolio/reports/
           if-no-files-found: warn
           retention-days: 90
+

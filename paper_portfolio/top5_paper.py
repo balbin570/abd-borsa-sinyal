@@ -87,8 +87,7 @@ def load_state():
         if state.get("version") != 1:
             raise RuntimeError("Unsupported portfolio state version")
         return state
-    return {"version": 1, "initial_cash": INITIAL_CASH, "cash": INITIAL_CASH,
-            "positions": [], "pending": [], "closed": [], "daily": [], "last_processed": None}
+    raise RuntimeError("Portfolio state missing; refusing to reset existing forward history")
 
 
 def number(value):
@@ -138,7 +137,12 @@ def main():
         raise RuntimeError(f"SPY data missing: {err}")
     session = spy.index[-1].date().isoformat()
     if state["last_processed"] == session:
-        print(f"Already processed {session}; no duplicate portfolio update")
+        message = f"Already processed {session}; no duplicate portfolio update"
+        print(message)
+        summary = os.environ.get("GITHUB_STEP_SUMMARY")
+        if summary:
+            with open(summary, "a") as f:
+                f.write(message + "\n\n" + REPORT.read_text())
         return
     if state["last_processed"] and session < state["last_processed"]:
         raise RuntimeError("Market data older than last processed session")
@@ -185,8 +189,7 @@ def main():
     # IMPORTANT: no state mutation on unpriced holding. Never publish a
     # partial portfolio equity figure presented as an actual daily result.
     if unpriced:
-        print(f"DATA_INCOMPLETE: invalid daily close for {', '.join(unpriced)}; skipping daily paper update", flush=True)
-        return
+        raise RuntimeError(f"DATA_INCOMPLETE: invalid daily close for {unpriced}; no state saved")
 
     # Pending signals are entered on the next available market session OPEN.
     # On a missed run, a pending entry is canceled rather than filled days late.
@@ -231,8 +234,7 @@ def main():
         last = since.iloc[-1]
         open_px, low_px, close_px = (number(last[k]) for k in ("open", "low", "close"))
         if None in (open_px, low_px, close_px) or min(open_px, low_px, close_px) <= 0:
-            print(f"DATA_INCOMPLETE: invalid daily OHLC for {sym}; no invented exit", flush=True)
-            return
+            raise RuntimeError(f"DATA_INCOMPLETE: invalid daily OHLC for {sym}; no state saved")
         held = len(since)
         stop = pos["entry_price"] * (1 - STOP_PCT)
         reason = None
@@ -272,6 +274,12 @@ def main():
         free -= 1
 
     value = state["cash"] + sum(p["shares"] * float(frames[p["symbol"]].iloc[-1]["close"]) for p in state["positions"])
+    previous = state["daily"][-1] if state["daily"] else None
+    daily_pnl = value - previous["equity"] if previous else 0.0
+    daily_return = 100 * daily_pnl / previous["equity"] if previous else 0.0
+    spy_return = 100 * (float(spy.iloc[-1]["close"]) / previous["spy_close"] - 1) if previous else 0.0
+    peak = max([state["initial_cash"], value] + [d["equity"] for d in state["daily"]])
+    drawdown = 100 * (value / peak - 1)
     state["daily"].append({"date": session, "equity": round(value, 2), "cash": round(state["cash"], 2),
                            "positions": len(state["positions"]), "pending": len(state["pending"]),
                            "spy_close": round(float(spy.iloc[-1]["close"]), 6)})
@@ -283,6 +291,7 @@ def main():
              "**Paper only; no orders.** This is a forward-only ledger, not a backtest.", "",
              f"- Universe: {len(symbols)}; valid data: {valid}; failed: {len(errors)}",
              f"- Cash: ${state['cash']:,.2f}; equity: ${value:,.2f}; net return from inception: {(value/INITIAL_CASH-1)*100:+.2f}%",
+             f"- Change since previous recorded session: ${daily_pnl:+,.2f} ({daily_return:+.2f}%); SPY: {spy_return:+.2f}%; drawdown: {drawdown:.2f}%",
              f"- Open positions: {len(state['positions'])}; next-session pending entries: {len(state['pending'])}; closed trades: {len(state['closed'])}",
              f"- All qualifying signals today: {len(candidates)}; selection: top score = RS55 + 2 × min(volume ratio, 4)",
              "- Volume threshold: 1.2; stop: 5%; maximum hold: 10 trading bars; 0.15% fee each side",
@@ -302,8 +311,15 @@ def main():
         lines.append(f"| {p['symbol']} | {p['entry_date']} | {p['exit_date']} | {p['reason']} | ${p['net_pnl']:+.2f} | {p['net_return_pct']:+.2f}% |")
     lines += ["", "## Data issues", "", ", ".join(sorted(errors)) if errors else "None", ""]
     report="\n".join(lines)
+    # Serialize strictly before writing; never persist NaN/Infinity in the ledger.
+    payload = json.dumps(state, indent=2, allow_nan=False) + "\n"
+    reports = ROOT / "reports"
+    reports.mkdir(exist_ok=True)
+    (reports / f"{session}.md").write_text(report)
     REPORT.write_text(report)
-    STATE.write_text(json.dumps(state, indent=2) + "\n")
+    temporary = STATE.with_suffix(".json.tmp")
+    temporary.write_text(payload)
+    temporary.replace(STATE)
     print(report)
     summary=os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
@@ -313,3 +329,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

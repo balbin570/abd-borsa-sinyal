@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 55
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -34,6 +35,7 @@ jobs:
           import requests
           import yfinance as yf
           from screener.rs_breakout import normalize_bars, build_signal_frame
+          from paper_portfolio.top5_paper import get_bars
           now=datetime.now(ZoneInfo("America/New_York"))
           as_of=now.date()
           if now.hour<17:as_of-=timedelta(days=1)
@@ -48,16 +50,8 @@ jobs:
           if len(symbols)<450:raise RuntimeError(f"Constituent universe too small: {len(symbols)}")
           print(f"Universe {len(symbols)} symbols; data cutoff {as_of}",flush=True)
           def fetch(symbol):
-              for attempt in range(3):
-                  try:
-                      df=yf.Ticker(symbol).history(start=str(as_of-timedelta(days=220)),end=str(as_of+timedelta(days=1)),auto_adjust=True)
-                      if df is None or df.empty:raise ValueError("Empty OHLCV")
-                      df.columns=[str(c).lower() for c in df.columns]
-                      return symbol,normalize_bars(df,as_of),""
-                  except Exception as e:
-                      err=f"{type(e).__name__}: {str(e)[:90]}"
-                      time.sleep(0.5*(attempt+1))
-              return symbol,pd.DataFrame(),err
+              bars, error = get_bars(symbol, as_of-timedelta(days=220), as_of+timedelta(days=1))
+              return symbol, bars, error
           _,spy,spyerr=fetch("SPY")
           if len(spy)<65:raise RuntimeError(f"SPY history unavailable: {spyerr}")
           rows=[]
@@ -123,3 +117,4 @@ jobs:
             sp500_rs_paper.csv
           if-no-files-found: warn
           retention-days: 30
+
