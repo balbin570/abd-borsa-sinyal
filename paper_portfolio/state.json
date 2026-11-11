@@ -67,7 +67,15 @@
       "positions": 5,
       "pending": 0,
       "spy_close": 752.690002
+    },
+    {
+      "date": "2026-11-10",
+      "equity": 10098.96,
+      "cash": 650.1,
+      "positions": 5,
+      "pending": 0,
+      "spy_close": 749.919983
     }
   ],
-  "last_processed": "2026-11-09"
+  "last_processed": "2026-11-10"
 }
