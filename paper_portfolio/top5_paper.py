@@ -37,7 +37,32 @@ def get_bars(symbol, start, end):
             if df is None or df.empty:
                 raise ValueError("No OHLCV bars")
             df.columns = [str(c).lower() for c in df.columns]
-            return normalize_bars(df, end - timedelta(days=1)), ""
+            bars = normalize_bars(df, end - timedelta(days=1))
+            if len(bars):
+                last = bars.iloc[-1]
+                needed = [number(last.get(k)) for k in ("open", "high", "low", "close")]
+                if None in needed or min(needed) <= 0:
+                    # Yahoo may return a close but missing open/high/low.
+                    # Repair from an independent unadjusted request, then
+                    # recalculate adjusted OHLC using the adjusted close.
+                    raw = yf.Ticker(symbol).history(start=str(start), end=str(end), auto_adjust=False, repair=True)
+                    if raw is not None and not raw.empty:
+                        raw.columns = [str(x).lower() for x in raw.columns]
+                        raw = normalize_bars(raw, end - timedelta(days=1))
+                        if len(raw) and raw.index[-1].date() == bars.index[-1].date():
+                            r = raw.iloc[-1]
+                            raw_close = number(r.get("close"))
+                            adjusted_close = number(last.get("close"))
+                            if raw_close and raw_close > 0 and adjusted_close and adjusted_close > 0:
+                                factor = adjusted_close / raw_close
+                                for col in ("open", "high", "low"):
+                                    if number(last.get(col)) is None and number(r.get(col)) is not None:
+                                        bars.loc[bars.index[-1], col] = float(r[col]) * factor
+                    last = bars.iloc[-1]
+                    needed = [number(last.get(k)) for k in ("open", "high", "low", "close")]
+                    if None in needed or min(needed) <= 0:
+                        raise ValueError("Incomplete latest-session OHLC after repair")
+            return bars, ""
         except Exception as exc:
             error = f"{type(exc).__name__}: {str(exc)[:100]}"
             time.sleep(0.5 * (attempt + 1))
