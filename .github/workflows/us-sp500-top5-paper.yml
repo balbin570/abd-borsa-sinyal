@@ -39,7 +39,24 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add paper_portfolio/state.json paper_portfolio/latest_report.md
           git commit -m "Paper portfolio update"
-          git push
+          # A workflow/code change may land while prices are downloading.
+          # Rebase only the ledger commit onto the new remote head.
+          # Never force-push and never overwrite other people's commits.
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            git rebase origin/main || {
+              git rebase --abort || true
+              echo "::error::Ledger files changed concurrently; manual review required."
+              exit 1
+            }
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Remote branch advanced; retrying safe rebase in 2s"
+            sleep 2
+          done
+          echo "::error::Unable to push ledger after retries"
+          exit 1
       - name: Upload current paper portfolio snapshot
         if: always()
         uses: actions/upload-artifact@v4
