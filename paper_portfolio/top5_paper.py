@@ -140,10 +140,28 @@ def main():
     if valid < len(symbols) * 0.90:
         raise RuntimeError(f"Data quality failure: {valid}/{len(symbols)} valid. No state saved.")
 
-    # Do not silently drop holdings or queued entries when their data is missing.
+    # Missing/stale holdings data must not fabricate orders or prices.
+    # If a data provider returns NaN for the current session, mark the
+    # valuation as unavailable rather than crashing the entire portfolio.
     required = {p["symbol"] for p in state["positions"]} | {p["symbol"] for p in state["pending"]}
-    if required - frames.keys():
-        raise RuntimeError(f"Missing data for held/pending stocks: {sorted(required - frames.keys())}")
+    missing = sorted(required - frames.keys())
+    if missing:
+        raise RuntimeError(f"Missing complete current-session bars for held/pending stocks: {missing}")
+    unpriced = []
+    valid_held_prices = {}
+    for pos in state["positions"]:
+        sym = pos["symbol"]
+        current = frames[sym].iloc[-1]
+        close = number(current.get("close"))
+        if close is None or close <= 0:
+            unpriced.append(sym)
+        else:
+            valid_held_prices[sym] = close
+    # IMPORTANT: no state mutation on unpriced holding. Never publish a
+    # partial portfolio equity figure presented as an actual daily result.
+    if unpriced:
+        print(f"DATA_INCOMPLETE: invalid daily close for {', '.join(unpriced)}; skipping daily paper update", flush=True)
+        return
 
     # Pending signals are entered on the next available market session OPEN.
     # On a missed run, a pending entry is canceled rather than filled days late.
@@ -187,8 +205,9 @@ def main():
             continue
         last = since.iloc[-1]
         open_px, low_px, close_px = (number(last[k]) for k in ("open", "low", "close"))
-        if None in (open_px, low_px, close_px):
-            raise RuntimeError(f"Invalid exit data for {sym}")
+        if None in (open_px, low_px, close_px) or min(open_px, low_px, close_px) <= 0:
+            print(f"DATA_INCOMPLETE: invalid daily OHLC for {sym}; no invented exit", flush=True)
+            return
         held = len(since)
         stop = pos["entry_price"] * (1 - STOP_PCT)
         reason = None
