@@ -1,11 +1,12 @@
-# S&P 500 Top 5 — Forward Paper Portfolio (2026-11-10)
+# S&P 500 Top 5 — Forward Paper Portfolio (2026-11-11)
 
 **Paper only; no orders.** This is a forward-only ledger, not a backtest.
 
 - Universe: 503; valid data: 503; failed: 0
-- Cash: $650.10; equity: $10,098.96; net return from inception: +0.99%
+- Cash: $650.10; equity: $10,227.23; net return from inception: +2.27%
+- Change since previous recorded session: $+128.27 (+1.27%); SPY: +1.32%; drawdown: 0.00%
 - Open positions: 5; next-session pending entries: 0; closed trades: 0
-- All qualifying signals today: 4; selection: top score = RS55 + 2 × min(volume ratio, 4)
+- All qualifying signals today: 5; selection: top score = RS55 + 2 × min(volume ratio, 4)
 - Volume threshold: 1.2; stop: 5%; maximum hold: 10 trading bars; 0.15% fee each side
 - Next-session OPEN entry, no same-close execution. Missing-run pending entries canceled.
 
