@@ -137,12 +137,40 @@ def main():
         raise RuntimeError(f"SPY data missing: {err}")
     session = spy.index[-1].date().isoformat()
     if state["last_processed"] == session:
-        message = f"Already processed {session}; no duplicate portfolio update"
-        print(message)
-        summary = os.environ.get("GITHUB_STEP_SUMMARY")
-        if summary:
-            with open(summary, "a") as f:
-                f.write(message + "\n\n" + REPORT.read_text())
+        # Existing ledger is already finalized. Rebuild ONLY the independent
+        # read-only IBKR candidate feed when absent; never replay fills/exits.
+        feed_path = ROOT / "ibkr_paper_candidates.json"
+        if feed_path.exists():
+            try:
+                existing_feed = json.loads(feed_path.read_text(encoding="utf-8"))
+                if existing_feed.get("signal_session") == session:
+                    print(f"Already processed {session}; candidate feed already present")
+                    return
+            except (ValueError, OSError):
+                pass
+        print(f"Rebuilding missing IBKR candidate feed for {session} without changing ledger", flush=True)
+        symbols = get_universe()
+        frames = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+            def fetch_candidate(sym):
+                bars, error = get_bars(sym, cutoff - timedelta(days=240), cutoff + timedelta(days=1))
+                return sym, bars
+            for sym, bars in pool.map(fetch_candidate, symbols):
+                if len(bars) and bars.index[-1].date().isoformat() == session:
+                    frames[sym] = bars
+        if len(frames) < len(symbols) * 0.90:
+            raise RuntimeError(f"Data quality failure: {len(frames)}/{len(symbols)} valid")
+        items = [(sym, frame, spy) for sym, frame in frames.items()]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+            candidates = [c for c in pool.map(scan_symbol, items) if c is not None]
+        candidates.sort(key=lambda c: (-c["score"], c["symbol"]))
+        feed = {"schema_version": 1, "source": "sp500_top5_daily_scan",
+                "signal_session": session, "orders_enabled": False,
+                "candidate_count": len(candidates), "candidates": candidates[:25]}
+        tmp = feed_path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(feed, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+        tmp.replace(feed_path)
+        print(f"IBKR READ-ONLY FEED: session={session}, candidates={len(candidates)}; historical ledger unchanged")
         return
     if state["last_processed"] and session < state["last_processed"]:
         raise RuntimeError("Market data older than last processed session")
