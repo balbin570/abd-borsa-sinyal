@@ -33,13 +33,13 @@ jobs:
         run: python paper_portfolio/top5_paper.py
       - name: Save daily paper ledger to GitHub
         run: |
-          if git diff --quiet -- paper_portfolio/state.json paper_portfolio/latest_report.md paper_portfolio/reports && [ -z "$(git ls-files --others --exclude-standard paper_portfolio/state.json paper_portfolio/latest_report.md paper_portfolio/reports)" ]; then
+          if git diff --quiet -- paper_portfolio/state.json paper_portfolio/latest_report.md paper_portfolio/reports paper_portfolio/ibkr_paper_candidates.json && [ -z "$(git ls-files --others --exclude-standard paper_portfolio/state.json paper_portfolio/latest_report.md paper_portfolio/reports paper_portfolio/ibkr_paper_candidates.json)" ]; then
             echo "No new market session to commit"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add paper_portfolio/state.json paper_portfolio/latest_report.md paper_portfolio/reports
+          git add paper_portfolio/state.json paper_portfolio/latest_report.md paper_portfolio/reports paper_portfolio/ibkr_paper_candidates.json paper_portfolio/ibkr_paper_candidates.json
           git commit -m "Paper portfolio update"
           # A workflow/code change may land while prices are downloading.
           # Rebase only the ledger commit onto the new remote head.
@@ -68,6 +68,7 @@ jobs:
             paper_portfolio/state.json
             paper_portfolio/latest_report.md
             paper_portfolio/reports/
+            paper_portfolio/ibkr_paper_candidates.json
           if-no-files-found: warn
           retention-days: 90
 
