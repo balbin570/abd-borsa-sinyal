@@ -269,7 +269,7 @@ def main():
             "candidate_count": len(candidates), "candidates": candidates[:25]}
     feed_path = ROOT / "ibkr_paper_candidates.json"
     feed_tmp = feed_path.with_suffix(".json.tmp")
-    feed_tmp.write_text(json.dumps(feed, indent=2, allow_nan=False) + "\\n", encoding="utf-8")
+    feed_tmp.write_text(json.dumps(feed, indent=2, allow_nan=False) + "\n", encoding="utf-8")
     feed_tmp.replace(feed_path)
     reserved = {p["symbol"] for p in state["positions"]} | {p["symbol"] for p in state["pending"]}
     free = MAX_POSITIONS - len(state["positions"]) - len(state["pending"])
