@@ -262,6 +262,15 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
         candidates = [c for c in pool.map(scan_symbol, items) if c is not None]
     candidates.sort(key=lambda c: (-c["score"], c["symbol"]))
+    # Independent read-only candidate feed for IBKR Paper. This is NOT the
+    # historical portfolio's pending list and never creates broker orders.
+    feed = {"schema_version": 1, "source": "sp500_top5_daily_scan",
+            "signal_session": session, "orders_enabled": False,
+            "candidate_count": len(candidates), "candidates": candidates[:25]}
+    feed_path = ROOT / "ibkr_paper_candidates.json"
+    feed_tmp = feed_path.with_suffix(".json.tmp")
+    feed_tmp.write_text(json.dumps(feed, indent=2, allow_nan=False) + "\\n", encoding="utf-8")
+    feed_tmp.replace(feed_path)
     reserved = {p["symbol"] for p in state["positions"]} | {p["symbol"] for p in state["pending"]}
     free = MAX_POSITIONS - len(state["positions"]) - len(state["pending"])
     for c in candidates:
