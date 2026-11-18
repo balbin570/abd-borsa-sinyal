@@ -1,145 +1,65 @@
 {
   "schema_version": 1,
   "source": "sp500_top5_daily_scan",
-  "signal_session": "2026-11-16",
+  "signal_session": "2026-11-17",
   "orders_enabled": false,
-  "candidate_count": 17,
+  "candidate_count": 7,
   "candidates": [
     {
-      "symbol": "MCK",
-      "signal_date": "2026-11-16",
-      "rs55": 28.423,
-      "volume_ratio": 1.2645,
-      "signal_close": 1105.04,
-      "score": 30.9521
-    },
-    {
-      "symbol": "PG",
-      "signal_date": "2026-11-16",
-      "rs55": 25.6342,
-      "volume_ratio": 1.4862,
-      "signal_close": 173.02,
-      "score": 28.6066
-    },
-    {
-      "symbol": "TSN",
-      "signal_date": "2026-11-16",
-      "rs55": 20.84,
-      "volume_ratio": 2.2238,
-      "signal_close": 63.95,
-      "score": 25.2876
-    },
-    {
       "symbol": "COST",
-      "signal_date": "2026-11-16",
-      "rs55": 22.3551,
-      "volume_ratio": 1.302,
-      "signal_close": 1113.74,
-      "score": 24.959
+      "signal_date": "2026-11-17",
+      "rs55": 23.0407,
+      "volume_ratio": 1.3154,
+      "signal_close": 1110.08,
+      "score": 25.6715
     },
     {
-      "symbol": "CNC",
-      "signal_date": "2026-11-16",
-      "rs55": 19.7656,
-      "volume_ratio": 1.4572,
-      "signal_close": 74.77,
-      "score": 22.6801
+      "symbol": "EIX",
+      "signal_date": "2026-11-17",
+      "rs55": 22.6884,
+      "volume_ratio": 1.2952,
+      "signal_close": 62.37,
+      "score": 25.2789
     },
     {
-      "symbol": "RSG",
-      "signal_date": "2026-11-16",
-      "rs55": 19.7229,
-      "volume_ratio": 1.2713,
-      "signal_close": 255.56,
-      "score": 22.2656
-    },
-    {
-      "symbol": "CHD",
-      "signal_date": "2026-11-16",
-      "rs55": 17.8475,
-      "volume_ratio": 1.941,
-      "signal_close": 114.74,
-      "score": 21.7295
-    },
-    {
-      "symbol": "ELV",
-      "signal_date": "2026-11-16",
-      "rs55": 17.8605,
-      "volume_ratio": 1.6754,
-      "signal_close": 446.28,
-      "score": 21.2112
-    },
-    {
-      "symbol": "ED",
-      "signal_date": "2026-11-16",
-      "rs55": 17.6004,
-      "volume_ratio": 1.5571,
-      "signal_close": 121.88,
-      "score": 20.7147
-    },
-    {
-      "symbol": "CL",
-      "signal_date": "2026-11-16",
-      "rs55": 16.0775,
-      "volume_ratio": 1.7785,
-      "signal_close": 100.99,
-      "score": 19.6346
+      "symbol": "TSCO",
+      "signal_date": "2026-11-17",
+      "rs55": 15.2118,
+      "volume_ratio": 1.2905,
+      "signal_close": 38.49,
+      "score": 17.7928
     },
     {
       "symbol": "DUK",
-      "signal_date": "2026-11-16",
-      "rs55": 13.5924,
-      "volume_ratio": 1.4172,
-      "signal_close": 130.59,
-      "score": 16.4268
+      "signal_date": "2026-11-17",
+      "rs55": 14.0795,
+      "volume_ratio": 1.5951,
+      "signal_close": 129.84,
+      "score": 17.2697
     },
     {
-      "symbol": "SO",
-      "signal_date": "2026-11-16",
-      "rs55": 12.1361,
-      "volume_ratio": 1.6407,
-      "signal_close": 94.64,
-      "score": 15.4175
+      "symbol": "AES",
+      "signal_date": "2026-11-17",
+      "rs55": 7.3514,
+      "volume_ratio": 2.0932,
+      "signal_close": 14.97,
+      "score": 11.5377
     },
     {
-      "symbol": "HRL",
-      "signal_date": "2026-11-16",
-      "rs55": 10.8805,
-      "volume_ratio": 1.2964,
-      "signal_close": 22.71,
-      "score": 13.4733
+      "symbol": "FE",
+      "signal_date": "2026-11-17",
+      "rs55": 8.2683,
+      "volume_ratio": 1.3029,
+      "signal_close": 47.06,
+      "score": 10.8741
     },
     {
-      "symbol": "EXC",
-      "signal_date": "2026-11-16",
-      "rs55": 10.7333,
-      "volume_ratio": 1.261,
-      "signal_close": 46.46,
-      "score": 13.2553
-    },
-    {
-      "symbol": "PEP",
-      "signal_date": "2026-11-16",
-      "rs55": 8.8065,
-      "volume_ratio": 1.4359,
-      "signal_close": 146.43,
-      "score": 11.6783
-    },
-    {
-      "symbol": "PEG",
-      "signal_date": "2026-11-16",
-      "rs55": 8.7643,
-      "volume_ratio": 1.2493,
-      "signal_close": 76.06,
-      "score": 11.2628
-    },
-    {
-      "symbol": "ES",
-      "signal_date": "2026-11-16",
-      "rs55": 7.8253,
-      "volume_ratio": 1.205,
-      "signal_close": 72.79,
-      "score": 10.2354
+      "symbol": "DPZ",
+      "signal_date": "2026-11-17",
+      "rs55": 7.5088,
+      "volume_ratio": 1.2136,
+      "signal_close": 349.86,
+      "score": 9.9361
     }
   ]
 }
