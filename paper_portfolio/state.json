@@ -1,7 +1,7 @@
 {
   "version": 1,
   "initial_cash": 10000.0,
-  "cash": 650.096194,
+  "cash": 2314.162372,
   "positions": [
     {
       "symbol": "APP",
@@ -22,15 +22,6 @@
       "signal_score": 29.3641
     },
     {
-      "symbol": "HUM",
-      "entry_date": "2026-11-09",
-      "entry_price": 438.570007,
-      "shares": 4,
-      "entry_cost": 1756.911449,
-      "signal_date": "2026-11-06",
-      "signal_score": 21.491
-    },
-    {
       "symbol": "V",
       "entry_date": "2026-11-09",
       "entry_price": 424.019989,
@@ -49,8 +40,32 @@
       "signal_score": 32.0907
     }
   ],
-  "pending": [],
-  "closed": [],
+  "pending": [
+    {
+      "symbol": "DIS",
+      "signal_date": "2026-11-18",
+      "rs55": 19.8792,
+      "volume_ratio": 2.0162,
+      "signal_close": 122.36,
+      "score": 23.9116
+    }
+  ],
+  "closed": [
+    {
+      "symbol": "HUM",
+      "entry_date": "2026-11-09",
+      "entry_price": 438.570007,
+      "shares": 4,
+      "entry_cost": 1756.911449,
+      "signal_date": "2026-11-06",
+      "signal_score": 21.491,
+      "exit_date": "2026-11-18",
+      "exit_price": 416.641507,
+      "reason": "STOP",
+      "net_pnl": -92.8453,
+      "net_return_pct": -5.2846
+    }
+  ],
   "daily": [
     {
       "date": "2026-11-06",
@@ -115,7 +130,15 @@
       "positions": 5,
       "pending": 0,
       "spy_close": 732.440002
+    },
+    {
+      "date": "2026-11-18",
+      "equity": 9812.19,
+      "cash": 2314.16,
+      "positions": 4,
+      "pending": 1,
+      "spy_close": 730.200012
     }
   ],
-  "last_processed": "2026-11-17"
+  "last_processed": "2026-11-18"
 }
