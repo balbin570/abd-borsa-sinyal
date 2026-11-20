@@ -26,6 +26,7 @@ EXIT_FEE = 0.0015
 STOP_PCT = 0.05
 MAX_HOLD_BARS = 10
 MIN_VOLUME_RATIO = 1.2
+MIN_UNIVERSE_COVERAGE = 0.85  # Tolerate isolated Yahoo gaps; holdings/pending remain mandatory.
 BENCHMARK = "SPY"
 
 
@@ -158,7 +159,7 @@ def main():
             for sym, bars in pool.map(fetch_candidate, symbols):
                 if len(bars) and bars.index[-1].date().isoformat() == session:
                     frames[sym] = bars
-        if len(frames) < len(symbols) * 0.90:
+        if len(frames) < len(symbols) * MIN_UNIVERSE_COVERAGE:
             raise RuntimeError(f"Data quality failure: {len(frames)}/{len(symbols)} valid")
         items = [(sym, frame, spy) for sym, frame in frames.items()]
         with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
@@ -194,7 +195,7 @@ def main():
             if i % 50 == 0:
                 print(f"Downloaded {i}/{len(symbols)}", flush=True)
     valid = len(frames)
-    if valid < len(symbols) * 0.90:
+    if valid < len(symbols) * MIN_UNIVERSE_COVERAGE:
         raise RuntimeError(f"Data quality failure: {valid}/{len(symbols)} valid. No state saved.")
 
     # Missing/stale holdings data must not fabricate orders or prices.
