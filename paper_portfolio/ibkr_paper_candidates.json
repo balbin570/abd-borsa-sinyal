@@ -1,49 +1,25 @@
 {
   "schema_version": 1,
   "source": "sp500_top5_daily_scan",
-  "signal_session": "2026-11-18",
+  "signal_session": "2026-11-19",
   "orders_enabled": false,
-  "candidate_count": 5,
+  "candidate_count": 2,
   "candidates": [
     {
-      "symbol": "DIS",
-      "signal_date": "2026-11-18",
-      "rs55": 19.8792,
-      "volume_ratio": 2.0162,
-      "signal_close": 122.36,
-      "score": 23.9116
-    },
-    {
-      "symbol": "DRI",
-      "signal_date": "2026-11-18",
-      "rs55": 16.4295,
-      "volume_ratio": 1.2436,
-      "signal_close": 239.22,
-      "score": 18.9167
-    },
-    {
-      "symbol": "DUK",
-      "signal_date": "2026-11-18",
-      "rs55": 13.3733,
-      "volume_ratio": 1.5897,
-      "signal_close": 130.05,
-      "score": 16.5526
-    },
-    {
       "symbol": "AES",
-      "signal_date": "2026-11-18",
-      "rs55": 7.0801,
-      "volume_ratio": 10.8979,
+      "signal_date": "2026-11-19",
+      "rs55": 9.4858,
+      "volume_ratio": 1.9027,
       "signal_close": 15.02,
-      "score": 15.0801
+      "score": 13.2912
     },
     {
-      "symbol": "FE",
-      "signal_date": "2026-11-18",
-      "rs55": 8.5878,
-      "volume_ratio": 1.2872,
-      "signal_close": 47.69,
-      "score": 11.1623
+      "symbol": "TGT",
+      "signal_date": "2026-11-19",
+      "rs55": 10.0661,
+      "volume_ratio": 1.3269,
+      "signal_close": 167.46,
+      "score": 12.72
     }
   ]
 }

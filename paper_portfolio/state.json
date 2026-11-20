@@ -1,7 +1,7 @@
 {
   "version": 1,
   "initial_cash": 10000.0,
-  "cash": 2314.162372,
+  "cash": 3804.426244,
   "positions": [
     {
       "symbol": "APP",
@@ -13,22 +13,13 @@
       "signal_score": 35.628
     },
     {
-      "symbol": "FISV",
-      "entry_date": "2026-11-09",
-      "entry_price": 63.099998,
-      "shares": 31,
-      "entry_cost": 1959.034103,
-      "signal_date": "2026-11-06",
-      "signal_score": 29.3641
-    },
-    {
-      "symbol": "V",
-      "entry_date": "2026-11-09",
-      "entry_price": 424.019989,
-      "shares": 4,
-      "entry_cost": 1698.624076,
-      "signal_date": "2026-11-06",
-      "signal_score": 22.1098
+      "symbol": "DIS",
+      "entry_date": "2026-11-19",
+      "entry_price": 121.970001,
+      "shares": 16,
+      "entry_cost": 1954.4473,
+      "signal_date": "2026-11-18",
+      "signal_score": 23.9116
     },
     {
       "symbol": "VTRS",
@@ -42,12 +33,20 @@
   ],
   "pending": [
     {
-      "symbol": "DIS",
-      "signal_date": "2026-11-18",
-      "rs55": 19.8792,
-      "volume_ratio": 2.0162,
-      "signal_close": 122.36,
-      "score": 23.9116
+      "symbol": "AES",
+      "signal_date": "2026-11-19",
+      "rs55": 9.4858,
+      "volume_ratio": 1.9027,
+      "signal_close": 15.02,
+      "score": 13.2912
+    },
+    {
+      "symbol": "TGT",
+      "signal_date": "2026-11-19",
+      "rs55": 10.0661,
+      "volume_ratio": 1.3269,
+      "signal_close": 167.46,
+      "score": 12.72
     }
   ],
   "closed": [
@@ -63,6 +62,34 @@
       "exit_price": 416.641507,
       "reason": "STOP",
       "net_pnl": -92.8453,
+      "net_return_pct": -5.2846
+    },
+    {
+      "symbol": "FISV",
+      "entry_date": "2026-11-09",
+      "entry_price": 63.099998,
+      "shares": 31,
+      "entry_cost": 1959.034103,
+      "signal_date": "2026-11-06",
+      "signal_score": 29.3641,
+      "exit_date": "2026-11-19",
+      "exit_price": 59.310001,
+      "reason": "STOP",
+      "net_pnl": -123.182,
+      "net_return_pct": -6.2879
+    },
+    {
+      "symbol": "V",
+      "entry_date": "2026-11-09",
+      "entry_price": 424.019989,
+      "shares": 4,
+      "entry_cost": 1698.624076,
+      "signal_date": "2026-11-06",
+      "signal_score": 22.1098,
+      "exit_date": "2026-11-19",
+      "exit_price": 402.81899,
+      "reason": "STOP",
+      "net_pnl": -89.765,
       "net_return_pct": -5.2846
     }
   ],
@@ -138,7 +165,15 @@
       "positions": 4,
       "pending": 1,
       "spy_close": 730.200012
+    },
+    {
+      "date": "2026-11-19",
+      "equity": 9591.65,
+      "cash": 3804.43,
+      "positions": 3,
+      "pending": 2,
+      "spy_close": 715.869995
     }
   ],
-  "last_processed": "2026-11-18"
+  "last_processed": "2026-11-19"
 }
