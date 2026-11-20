@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "initial_cash": 10000.0,
+  "cash": 10000.0,
+  "positions": [],
+  "pending": [],
+  "closed": [],
+  "daily": [
+    {
+      "date": "2026-11-19",
+      "equity": 10000.0,
+      "cash": 10000.0,
+      "market_ok": false,
+      "open": 0,
+      "pending": 0
+    }
+  ],
+  "last_processed": "2026-11-19"
+}
