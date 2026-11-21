@@ -1,16 +1,16 @@
 {
   "version": 1,
   "initial_cash": 10000.0,
-  "cash": 3804.426244,
+  "cash": 3894.255225,
   "positions": [
     {
-      "symbol": "APP",
-      "entry_date": "2026-11-09",
-      "entry_price": 387.709991,
-      "shares": 5,
-      "entry_cost": 1941.457782,
-      "signal_date": "2026-11-06",
-      "signal_score": 35.628
+      "symbol": "AES",
+      "entry_date": "2026-11-20",
+      "entry_price": 15.03,
+      "shares": 132,
+      "entry_cost": 1986.935905,
+      "signal_date": "2026-11-19",
+      "signal_score": 13.2912
     },
     {
       "symbol": "DIS",
@@ -22,31 +22,31 @@
       "signal_score": 23.9116
     },
     {
-      "symbol": "VTRS",
-      "entry_date": "2026-11-09",
-      "entry_price": 20.110001,
-      "shares": 99,
-      "entry_cost": 1993.876396,
-      "signal_date": "2026-11-06",
-      "signal_score": 32.0907
+      "symbol": "TGT",
+      "entry_date": "2026-11-20",
+      "entry_price": 170.0,
+      "shares": 10,
+      "entry_cost": 1702.55,
+      "signal_date": "2026-11-19",
+      "signal_score": 12.72
     }
   ],
   "pending": [
     {
-      "symbol": "AES",
-      "signal_date": "2026-11-19",
-      "rs55": 9.4858,
-      "volume_ratio": 1.9027,
-      "signal_close": 15.02,
-      "score": 13.2912
+      "symbol": "TSN",
+      "signal_date": "2026-11-20",
+      "rs55": 40.6658,
+      "volume_ratio": 1.7274,
+      "signal_close": 65.12,
+      "score": 44.1207
     },
     {
-      "symbol": "TGT",
-      "signal_date": "2026-11-19",
-      "rs55": 10.0661,
-      "volume_ratio": 1.3269,
-      "signal_close": 167.46,
-      "score": 12.72
+      "symbol": "WRB",
+      "signal_date": "2026-11-20",
+      "rs55": 26.16,
+      "volume_ratio": 1.2886,
+      "signal_close": 78.31,
+      "score": 28.7372
     }
   ],
   "closed": [
@@ -91,6 +91,34 @@
       "reason": "STOP",
       "net_pnl": -89.765,
       "net_return_pct": -5.2846
+    },
+    {
+      "symbol": "APP",
+      "entry_date": "2026-11-09",
+      "entry_price": 387.709991,
+      "shares": 5,
+      "entry_cost": 1941.457782,
+      "signal_date": "2026-11-06",
+      "signal_score": 35.628,
+      "exit_date": "2026-11-20",
+      "exit_price": 368.324491,
+      "reason": "STOP",
+      "net_pnl": -102.5978,
+      "net_return_pct": -5.2846
+    },
+    {
+      "symbol": "VTRS",
+      "entry_date": "2026-11-09",
+      "entry_price": 20.110001,
+      "shares": 99,
+      "entry_cost": 1993.876396,
+      "signal_date": "2026-11-06",
+      "signal_score": 32.0907,
+      "exit_date": "2026-11-20",
+      "exit_price": 19.629999,
+      "reason": "TIME",
+      "net_pnl": -53.4215,
+      "net_return_pct": -2.6793
     }
   ],
   "daily": [
@@ -173,7 +201,15 @@
       "positions": 3,
       "pending": 2,
       "spy_close": 715.869995
+    },
+    {
+      "date": "2026-11-20",
+      "equity": 9422.88,
+      "cash": 3894.26,
+      "positions": 3,
+      "pending": 2,
+      "spy_close": 689.809998
     }
   ],
-  "last_processed": "2026-11-19"
+  "last_processed": "2026-11-20"
 }
