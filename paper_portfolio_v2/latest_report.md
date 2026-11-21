@@ -1,4 +1,4 @@
-# US TOP5 V2 — 2026-11-19
+# US TOP5 V2 — 2026-11-20
 
 Paper only; no brokerage orders. Independent V2 ledger, V1 untouched.
 
