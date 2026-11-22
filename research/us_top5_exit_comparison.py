@@ -54,7 +54,8 @@ def replay(version,mode,frames,spy,universe):
                 exit_px=max(op,entry*1.02);reason="HALF_TP2" if qty>=2 else "TP2_SINGLE_SHARE";partial=(qty>=2)
             elif held>=10:exit_px=cl;reason="TIME10"
             if exit_px is not None:
-                sell_qty=qty//2 if partial else qty\n                if qty<=0 or sell_qty<=0:raise RuntimeError("Invalid zero-share position in exit replay")
+                sell_qty=qty//2 if partial else qty
+                if qty<=0 or sell_qty<=0:raise RuntimeError("Invalid zero-share position in exit replay")
                 proceeds=sell_qty*exit_px*(1-FEE);cash+=proceeds
                 alloc_cost=p["cost"]*sell_qty/qty
                 pnl=proceeds-alloc_cost
