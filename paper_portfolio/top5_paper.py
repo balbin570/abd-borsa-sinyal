@@ -25,6 +25,9 @@ ENTRY_FEE = 0.0015
 EXIT_FEE = 0.0015
 STOP_PCT = 0.05
 MAX_HOLD_BARS = 10
+STRATEGY = 'V1-D2-LOSS2'
+EARLY_EXIT_DAY = 2
+EARLY_EXIT_THRESHOLD_PCT = -2.0
 MIN_VOLUME_RATIO = 1.2
 MIN_UNIVERSE_COVERAGE = 0.85  # Tolerate isolated Yahoo gaps; holdings/pending remain mandatory.
 BENCHMARK = "SPY"
@@ -220,6 +223,26 @@ def main():
     if unpriced:
         raise RuntimeError(f"DATA_INCOMPLETE: invalid daily close for {unpriced}; no state saved")
 
+    # D2-LOSS2: a confirmed day-2 close <= -2% schedules next-session OPEN exit.
+    # Preserve the historical ledger; never sell at the prior close.
+    early_kept = []
+    for pos in state["positions"]:
+        if not pos.get("early_exit_due"):
+            early_kept.append(pos)
+            continue
+        sym = pos["symbol"]
+        open_price = number(frames[sym].iloc[-1].get("open"))
+        if open_price is None or open_price <= 0:
+            raise RuntimeError(f"DATA_INCOMPLETE: early-exit open missing for {sym}; no state saved")
+        proceeds = pos["shares"] * open_price * (1 - EXIT_FEE)
+        pnl = proceeds - pos["entry_cost"]
+        state["cash"] += proceeds
+        state["closed"].append({**pos, "exit_date": session, "exit_price": round(open_price, 6),
+                                "reason": "D2_LOSS2_NEXT_OPEN", "net_pnl": round(pnl, 4),
+                                "net_return_pct": round(100 * pnl / pos["entry_cost"], 4)})
+        print(f"PAPER EXIT {sym}: D2_LOSS2_NEXT_OPEN, net {pnl:.2f}")
+    state["positions"] = early_kept
+
     # Pending signals are entered on the next available market session OPEN.
     # On a missed run, a pending entry is canceled rather than filled days late.
     remaining_pending = []
@@ -283,6 +306,9 @@ def main():
                                     "net_return_pct": round(100 * pnl / pos["entry_cost"], 4)})
             print(f"PAPER EXIT {sym}: {reason}, net {pnl:.2f}")
         else:
+            if held == EARLY_EXIT_DAY and 100 * (close_px / pos["entry_price"] - 1) <= EARLY_EXIT_THRESHOLD_PCT:
+                pos["early_exit_due"] = True
+                print(f"D2_LOSS2 scheduled {sym}: next-session OPEN")
             kept.append(pos)
     state["positions"] = kept
 
@@ -322,10 +348,11 @@ def main():
                            "positions": len(state["positions"]), "pending": len(state["pending"]),
                            "spy_close": round(float(spy.iloc[-1]["close"]), 6)})
     state["last_processed"] = session
+    state["strategy"] = STRATEGY
     state["cash"] = round(state["cash"], 6)
     state["positions"].sort(key=lambda p: p["symbol"])
     state["pending"].sort(key=lambda p: -p["score"])
-    lines = [f"# S&P 500 Top 5 — Forward Paper Portfolio ({session})", "",
+    lines = [f"# S&P 500 Top 5 V1-D2-LOSS2 — Forward Paper Portfolio ({session})", "",
              "**Paper only; no orders.** This is a forward-only ledger, not a backtest.", "",
              f"- Universe: {len(symbols)}; valid data: {valid}; failed: {len(errors)}",
              f"- Cash: ${state['cash']:,.2f}; equity: ${value:,.2f}; net return from inception: {(value/INITIAL_CASH-1)*100:+.2f}%",
@@ -334,6 +361,7 @@ def main():
              f"- All qualifying signals today: {len(candidates)}; selection: top score = RS55 + 2 × min(volume ratio, 4)",
              "- Volume threshold: 1.2; stop: 5%; maximum hold: 10 trading bars; 0.15% fee each side",
              "- Next-session OPEN entry, no same-close execution. Missing-run pending entries canceled.",
+             "- D2-LOSS2: second-day close <= -2% from entry schedules exit at next-session OPEN.",
              "", "## Open positions", "",
              "| Symbol | Entry date | Entry price | Shares |", "|---|---|---:|---:|"]
     for p in state["positions"]:
