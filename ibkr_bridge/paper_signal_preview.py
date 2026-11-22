@@ -23,6 +23,14 @@ def preview(state, snapshot, *, activation_date, execution_date):
         raise ValueError("DENIED: unknown strategy state version")
     if state.get("strategy") != "V1-D2-LOSS2+B125_SPY_MOM20_POS":
         raise ValueError("DENIED: legacy strategy state; only B125_SPY_MOM20_POS allowed")
+    # Reject a local broker-facing state for another account; never infer
+    # account identity from a DU prefix alone.
+    if "account" in state and state["account"] != account:
+        raise ValueError("DENIED: local strategy account mismatch")
+    if "activation_date" in state and state["activation_date"] != activation_date.isoformat():
+        raise ValueError("DENIED: activation date mismatch")
+    if state.get("orders_enabled") is not False and "orders_enabled" in state:
+        raise ValueError("DENIED: local state must remain read-only")
     held = {p["symbol"] for p in snapshot.get("positions", []) if p.get("quantity", 0) != 0}
     held |= {o["symbol"] for o in snapshot.get("open_orders", [])}
     # Conservative only: no stale, future, historical or same-day entries.
