@@ -9,6 +9,18 @@ class PreviewTests(unittest.TestCase):
         out=preview(STATE,SNAP,activation_date=date(2026,11,17),execution_date=date(2026,11,18))
         self.assertEqual(len(out["candidates_for_review"]),1)
         self.assertFalse(out["orders_enabled"])
+    def test_missing_strategy_tag_denied(self):
+        # Existing legacy paper_portfolio/state.json has no strategy marker.
+        # Never infer the new strategy from old holdings or pending signals.
+        legacy={**STATE}
+        legacy.pop("strategy")
+        with self.assertRaisesRegex(ValueError, "legacy strategy"):
+            preview(legacy,SNAP,activation_date=date(2026,11,20),execution_date=date(2026,11,23))
+    def test_old_pending_signal_cannot_enter_new_broker_account(self):
+        historical={**STATE,"pending":[{"symbol":"TSN","signal_date":"2026-11-20"}]}
+        out=preview(historical,SNAP,activation_date=date(2026,11,22),execution_date=date(2026,11,23))
+        self.assertEqual(out["candidates_for_review"],[])
+        self.assertEqual(out["rejected"][0]["reason"],"historical before activation")
     def test_legacy_strategy_denied(self):
         with self.assertRaisesRegex(ValueError, "legacy strategy"):
             preview({**STATE,"strategy":"V1-D2-LOSS2"},SNAP,activation_date=date(2026,11,17),execution_date=date(2026,11,18))
