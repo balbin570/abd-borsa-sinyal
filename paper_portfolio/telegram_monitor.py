@@ -54,7 +54,7 @@ if ledger and ledger > seen.get("daily", ""):
         raise RuntimeError("Ledger/report mismatch")
     # Send only persisted ledger, not a partially completed run.
     daily = state["daily"][-1]
-    lines = ["ABD TOP5 V2 | Günlük rapor "+ledger,
+    lines = ["ABD TOP5 V1-D2-LOSS2 | Günlük rapor "+ledger,
              f"Portföy: ${daily['equity']:,.2f} | Toplam: {(daily['equity']/state['initial_cash']-1)*100:+.2f}%",
              f"Nakit: ${state['cash']:,.2f} | Açık: {len(state['positions'])} | Bekleyen: {len(state['pending'])}"]
     if len(state["daily"])>1:
@@ -108,7 +108,7 @@ if complete and state["daily"]:
     change=(total/state["daily"][-1]["equity"]-1)*100
     if change<=-2: alert("portfolio:down",f"Portföy günlük {change:+.2f}% | ${total:,.2f}")
 if messages:
-    send("ABD TOP5 V2 | ACİL UYARI\n"+"\n".join(messages)+"\nGecikmeli fiyat olabilir. Sanal izleme; emir gönderilmedi.")
+    send("ABD TOP5 V1-D2-LOSS2 | ACİL UYARI\n"+"\n".join(messages)+"\nGecikmeli fiyat olabilir. Sanal izleme; emir gönderilmedi.")
     seen["alerts"]=sorted(alerts)
     save()
 print("Monitoring complete; alerts:",len(messages))
