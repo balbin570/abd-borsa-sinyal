@@ -3,11 +3,6 @@ name: C2 Forward Validation
 on:
   workflow_dispatch:
 
-  schedule:
-    # 23:00 UTC = Türkiye 02:00
-    # Existing Telegram scan runs earlier,
-    # so Twelve Data requests do not overlap.
-    - cron: "0 23 * * 1-5"
 
 permissions:
   contents: write
