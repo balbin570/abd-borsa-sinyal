@@ -3,12 +3,15 @@ from datetime import date
 from ibkr_bridge.paper_signal_preview import preview
 
 SNAP={"mode":"READ_ONLY_NO_ORDERS","account":"DU123","complete":{"positions":True,"orders":True,"executions":True},"positions":[],"open_orders":[]}
-STATE={"version":1,"pending":[{"symbol":"AAPL","signal_date":"2026-11-17","score":3}]}
+STATE={"version":1,"strategy":"V1-D2-LOSS2+B125_SPY_MOM20_POS","pending":[{"symbol":"AAPL","signal_date":"2026-11-17","score":3}]}
 class PreviewTests(unittest.TestCase):
     def test_fresh_signal_review_only(self):
         out=preview(STATE,SNAP,activation_date=date(2026,11,17),execution_date=date(2026,11,18))
         self.assertEqual(len(out["candidates_for_review"]),1)
         self.assertFalse(out["orders_enabled"])
+    def test_legacy_strategy_denied(self):
+        with self.assertRaisesRegex(ValueError, "legacy strategy"):
+            preview({**STATE,"strategy":"V1-D2-LOSS2"},SNAP,activation_date=date(2026,11,17),execution_date=date(2026,11,18))
     def test_historical_denied(self):
         out=preview(STATE,SNAP,activation_date=date(2026,11,18),execution_date=date(2026,11,19))
         self.assertEqual(out["candidates_for_review"],[])
