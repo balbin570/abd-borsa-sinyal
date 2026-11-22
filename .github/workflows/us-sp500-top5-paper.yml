@@ -1,4 +1,4 @@
-name: US TOP5 V1-D2-LOSS2 - forward paper portfolio
+name: US TOP5 V1-D2-LOSS2 + B125 SPY MOM20 - forward paper
 on:
   workflow_dispatch:
   schedule:
