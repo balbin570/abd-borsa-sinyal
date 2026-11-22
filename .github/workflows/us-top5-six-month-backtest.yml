@@ -18,7 +18,7 @@ jobs:
           git clone --depth 1 https://github.com/KarneeshkarV/screener.git external-screener
           python -m pip install './external-screener[prices]' yfinance pandas requests lxml html5lib
       - name: Run read-only 6-month backtest
-        run: python research/us_top5_6m_backtest.py
+        run: python -m research.us_top5_6m_backtest
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v4
