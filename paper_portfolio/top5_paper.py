@@ -25,10 +25,12 @@ ENTRY_FEE = 0.0015
 EXIT_FEE = 0.0015
 STOP_PCT = 0.05
 MAX_HOLD_BARS = 10
-STRATEGY = 'V1-D2-LOSS2'
+STRATEGY = 'V1-D2-LOSS2+B125_SPY_MOM20_POS'
 EARLY_EXIT_DAY = 2
 EARLY_EXIT_THRESHOLD_PCT = -2.0
 MIN_VOLUME_RATIO = 1.2
+MIN_WEEKLY_BREAKOUT_PCT = 0.0125
+SPY_MOMENTUM_DAYS = 20
 MIN_UNIVERSE_COVERAGE = 0.85  # Tolerate isolated Yahoo gaps; holdings/pending remain mandatory.
 BENCHMARK = "SPY"
 
@@ -102,6 +104,17 @@ def number(value):
         return None
 
 
+def spy_momentum20_positive(spy):
+    """Use only the latest completed SPY close and the close 20 sessions earlier."""
+    closes = pd.to_numeric(spy["close"], errors="coerce")
+    if len(closes) <= SPY_MOMENTUM_DAYS:
+        raise RuntimeError("SPY needs 21 valid sessions for MOM20 filter")
+    current, past = number(closes.iloc[-1]), number(closes.iloc[-1 - SPY_MOMENTUM_DAYS])
+    if current is None or past is None or current <= 0 or past <= 0:
+        raise RuntimeError("SPY MOM20 missing valid comparison closes")
+    return current > past
+
+
 def scan_symbol(item):
     symbol, bars, spy = item
     if len(bars) < 65:
@@ -116,7 +129,7 @@ def scan_symbol(item):
         vol = number(last.get("volume_ratio"))
         if None in (close, rs, st, week, vol):
             return None
-        if rs <= 0 or close <= st or close <= week or vol < MIN_VOLUME_RATIO:
+        if rs <= 0 or close <= st or close <= week * (1 + MIN_WEEKLY_BREAKOUT_PCT) or vol < MIN_VOLUME_RATIO:
             return None
         return {"symbol": symbol, "signal_date": str(frame.index[-1].date()),
                 "rs55": round(rs, 4), "volume_ratio": round(vol, 4),
@@ -140,6 +153,8 @@ def main():
     if len(spy) < 65:
         raise RuntimeError(f"SPY data missing: {err}")
     session = spy.index[-1].date().isoformat()
+    market_entry_allowed = spy_momentum20_positive(spy)
+    print(f"ENTRY FILTER: weekly breakout > {MIN_WEEKLY_BREAKOUT_PCT:.2%}; SPY MOM20 positive={market_entry_allowed}", flush=True)
     if state["last_processed"] == session:
         # Existing ledger is already finalized. Rebuild ONLY the independent
         # read-only IBKR candidate feed when absent; never replay fills/exits.
@@ -166,7 +181,7 @@ def main():
             raise RuntimeError(f"Data quality failure: {len(frames)}/{len(symbols)} valid")
         items = [(sym, frame, spy) for sym, frame in frames.items()]
         with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
-            candidates = [c for c in pool.map(scan_symbol, items) if c is not None]
+            candidates = [c for c in pool.map(scan_symbol, items) if c is not None] if market_entry_allowed else []
         candidates.sort(key=lambda c: (-c["score"], c["symbol"]))
         feed = {"schema_version": 1, "source": "sp500_top5_daily_scan",
                 "signal_session": session, "orders_enabled": False,
@@ -335,7 +350,7 @@ def main():
     # New signals are queued, NOT entered at the already-known close.
     items = [(sym, frame, spy) for sym, frame in frames.items() if sym in symbols]
     with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
-        candidates = [c for c in pool.map(scan_symbol, items) if c is not None]
+        candidates = [c for c in pool.map(scan_symbol, items) if c is not None] if market_entry_allowed else []
     candidates.sort(key=lambda c: (-c["score"], c["symbol"]))
     # Independent read-only candidate feed for IBKR Paper. This is NOT the
     # historical portfolio's pending list and never creates broker orders.
@@ -372,14 +387,15 @@ def main():
     state["cash"] = round(state["cash"], 6)
     state["positions"].sort(key=lambda p: p["symbol"])
     state["pending"].sort(key=lambda p: -p["score"])
-    lines = [f"# S&P 500 Top 5 V1-D2-LOSS2 — Forward Paper Portfolio ({session})", "",
+    lines = [f"# S&P 500 Top 5 {STRATEGY} — Forward Paper Portfolio ({session})", "",
              "**Paper only; no orders.** This is a forward-only ledger, not a backtest.", "",
              f"- Universe: {len(symbols)}; valid data: {valid}; failed: {len(errors)}",
              f"- Cash: ${state['cash']:,.2f}; equity: ${value:,.2f}; net return from inception: {(value/INITIAL_CASH-1)*100:+.2f}%",
              f"- Change since previous recorded session: ${daily_pnl:+,.2f} ({daily_return:+.2f}%); SPY: {spy_return:+.2f}%; drawdown: {drawdown:.2f}%",
              f"- Open positions: {len(state['positions'])}; next-session pending entries: {len(state['pending'])}; closed trades: {len(state['closed'])}",
              f"- All qualifying signals today: {len(candidates)}; selection: top score = RS55 + 2 × min(volume ratio, 4)",
-             "- Volume threshold: 1.2; stop: 5%; maximum hold: 10 trading bars; 0.15% fee each side",
+             f"- Entry: RS55 > 0; Supertrend; weekly high breakout > {MIN_WEEKLY_BREAKOUT_PCT:.2%}; volume >= {MIN_VOLUME_RATIO}; SPY MOM20 positive: {market_entry_allowed}",
+             "- Stop: 5%; maximum hold: 10 trading bars; 0.15% fee each side",
              "- Next-session OPEN entry, no same-close execution. Missing-run pending entries canceled.",
              "- D2-LOSS2: second-day close <= -2% from entry schedules exit at next-session OPEN.",
              "", "## Open positions", "",
