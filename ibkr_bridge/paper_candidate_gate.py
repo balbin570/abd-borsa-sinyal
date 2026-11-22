@@ -27,7 +27,7 @@ def review(state, feed, *, today):
     if signal_date >= today or (today-signal_date).days > 4:
         raise ValueError("DENIED: stale or same-day signal")
     candidates = feed.get("candidates")
-    if not isinstance(candidates,list) or feed.get("candidate_count",0) < len(candidates):
+    if not isinstance(candidates,list) or type(feed.get("candidate_count")) is not int or feed["candidate_count"] < len(candidates):
         raise ValueError("DENIED: invalid candidate list")
     accepted=[]
     seen=set()
@@ -35,7 +35,7 @@ def review(state, feed, *, today):
         symbol=item.get("symbol")
         if item.get("signal_date") != signal_date.isoformat():
             raise ValueError("DENIED: mismatched candidate session")
-        if not isinstance(symbol,str) or not symbol.replace("-","").isalpha() or symbol in seen:
+        if not isinstance(symbol,str) or not symbol.isascii() or not symbol.replace("-","").isalpha() or symbol in seen:
             raise ValueError("DENIED: invalid or duplicate symbol")
         seen.add(symbol)
         accepted.append({"symbol":symbol,"signal_date":signal_date.isoformat(),"score":item.get("score")})
