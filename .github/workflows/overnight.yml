@@ -1,14 +1,6 @@
 name: Overnight V3 direct GitHub Actions
 
 on:
-  schedule:
-    # Prescreen: NY 13:40, yaz ve kis saati
-    - cron: '40 17 * * 1-5'
-    - cron: '40 18 * * 1-5'
-
-    # Final: NY 15:05, yaz ve kis saati
-    - cron: '5 19 * * 1-5'
-    - cron: '5 20 * * 1-5'
   workflow_dispatch:
     inputs:
       action:
