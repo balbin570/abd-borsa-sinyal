@@ -1,0 +1,31 @@
+name: US TOP5 D2-LOSS2 Entry Filter Comparison
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install market-data and screener dependencies
+        run: |
+          python -m pip install --upgrade pip
+          git clone --depth 1 https://github.com/KarneeshkarV/screener.git external-screener
+          python -m pip install './external-screener[prices]' yfinance pandas requests lxml html5lib
+      - name: Simulate entry-filter alternatives with D2-LOSS2 exits
+        run: python -m research.us_top5_entry_filter_comparison
+      - name: Upload comparison report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: us-top5-d2-loss2-entry-comparison
+          path: |
+            research/us_top5_6m/entry_filter_comparison.md
+            research/us_top5_6m/entry_filter_comparison.json
+          if-no-files-found: warn
+          retention-days: 30
