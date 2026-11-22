@@ -1,4 +1,4 @@
-name: US S&P 500 Top 5 - forward paper portfolio
+name: US TOP5 V1-D2-LOSS2 - forward paper portfolio
 on:
   workflow_dispatch:
   schedule:
