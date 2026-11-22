@@ -89,7 +89,7 @@ def simulate(version,frames,spy,universe,mode,volume_min,rs_min,breakout_min,mar
                 kept.append(p)
         positions=kept
         candidates=[]
-        if version=="V1" and (market_filter is None or (len(spy.loc[:day])>=200 and float(spy.loc[:day,"close"].iloc[-1])>float(spy.loc[:day,"close"].rolling(200).mean().iloc[-1])):
+        if version=="V1" and (market_filter is None or (len(spy.loc[:day])>=200 and float(spy.loc[:day,"close"].iloc[-1])>float(spy.loc[:day,"close"].rolling(200).mean().iloc[-1]))):
             for sym,f in signals.items():
                 if day not in f.index:continue
                 try:
