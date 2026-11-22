@@ -19,6 +19,8 @@ jobs:
           python -m pip install './external-screener[prices]' yfinance pandas requests lxml html5lib
       - name: Run read-only 6-month backtest
         run: python -m research.us_top5_6m_backtest
+      - name: Analyze entry profits and delayed exits
+        run: python -m research.us_top5_exit_diagnostics
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v4
@@ -27,5 +29,7 @@ jobs:
           path: |
             research/us_top5_6m/report.md
             research/us_top5_6m/result.json
+            research/us_top5_6m/exit_diagnostics.md
+            research/us_top5_6m/exit_diagnostics.json
           if-no-files-found: warn
           retention-days: 30
