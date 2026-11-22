@@ -34,6 +34,15 @@ class PreviewTests(unittest.TestCase):
     def test_incomplete_snapshot_denied(self):
         with self.assertRaises(ValueError):
             preview(STATE,{**SNAP,"complete":{}},activation_date=date(2026,11,17),execution_date=date(2026,11,18))
+    def test_local_account_mismatch_denied(self):
+        with self.assertRaisesRegex(ValueError, "account mismatch"):
+            preview({**STATE,"account":"DU999"},SNAP,activation_date=date(2026,11,17),execution_date=date(2026,11,18))
+    def test_local_activation_mismatch_denied(self):
+        with self.assertRaisesRegex(ValueError, "activation date mismatch"):
+            preview({**STATE,"activation_date":"2026-11-16"},SNAP,activation_date=date(2026,11,17),execution_date=date(2026,11,18))
+    def test_local_orders_enabled_denied(self):
+        with self.assertRaisesRegex(ValueError, "read-only"):
+            preview({**STATE,"orders_enabled":True},SNAP,activation_date=date(2026,11,17),execution_date=date(2026,11,18))
     def test_live_account_denied(self):
         with self.assertRaises(ValueError):
             preview(STATE,{**SNAP,"account":"U123"},activation_date=date(2026,11,17),execution_date=date(2026,11,18))
