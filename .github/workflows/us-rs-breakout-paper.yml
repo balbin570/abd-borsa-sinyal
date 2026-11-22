@@ -1,8 +1,6 @@
 name: US RS Breakout - paper signals
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '30 22 * * 1-5'
   push:
     paths:
       - .github/workflows/us-rs-breakout-paper.yml
