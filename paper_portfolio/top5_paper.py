@@ -223,6 +223,26 @@ def main():
     if unpriced:
         raise RuntimeError(f"DATA_INCOMPLETE: invalid daily close for {unpriced}; no state saved")
 
+    # One-time transition safety: for existing V1 holdings, infer a D2 signal
+    # only from the immediately previous completed session, never older bars.
+    # This handles positions whose second session was processed before promotion.
+    for pos in state["positions"]:
+        if pos.get("early_exit_due"):
+            continue
+        df = frames[pos["symbol"]]
+        past = df[df.index.date < pd.Timestamp(session).date()]
+        if past.empty:
+            continue
+        prior_session = spy[spy.index.date < pd.Timestamp(session).date()]
+        if prior_session.empty or past.index[-1].date() != prior_session.index[-1].date():
+            continue
+        held_before = past[past.index.date >= pd.Timestamp(pos["entry_date"]).date()]
+        if len(held_before) == EARLY_EXIT_DAY:
+            prior_close = number(held_before.iloc[-1].get("close"))
+            if prior_close is not None and 100 * (prior_close / pos["entry_price"] - 1) <= EARLY_EXIT_THRESHOLD_PCT:
+                pos["early_exit_due"] = True
+                print(f"D2_LOSS2 transition: prior-session signal confirmed for {pos['symbol']}")
+
     # D2-LOSS2: a confirmed day-2 close <= -2% schedules next-session OPEN exit.
     # Preserve the historical ledger; never sell at the prior close.
     early_kept = []
