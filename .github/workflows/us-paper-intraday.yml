@@ -1,9 +1,6 @@
 name: US Paper - indicative intraday portfolio
 on:
   workflow_dispatch:
-  schedule:
-    # During US regular market hours in both EST and EDT (UTC).
-    - cron: '*/30 14-21 * * 1-5'
 permissions:
   contents: read
 concurrency:
