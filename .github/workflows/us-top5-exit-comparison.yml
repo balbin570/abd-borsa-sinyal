@@ -1,0 +1,31 @@
+name: US TOP5 Exit Comparison - A to E
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install research dependencies
+        run: |
+          python -m pip install --upgrade pip
+          git clone --depth 1 https://github.com/KarneeshkarV/screener.git external-screener
+          python -m pip install './external-screener[prices]' yfinance pandas requests lxml html5lib
+      - name: Compare five exit strategies
+        run: python -m research.us_top5_exit_comparison
+      - name: Upload comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: us-top5-exit-comparison
+          path: |
+            research/us_top5_6m/exit_comparison.md
+            research/us_top5_6m/exit_comparison.json
+          if-no-files-found: warn
+          retention-days: 30
