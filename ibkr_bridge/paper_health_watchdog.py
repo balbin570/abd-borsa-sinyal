@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = ROOT / "ibkr_bridge" / "local_runtime"
 STATE = RUNTIME / "watchdog_state.json"
 EVENTS = RUNTIME / "watchdog_events.jsonl"
-EXPECTED = ROOT / "ibkr_paper_state.json"
+EXPECTED = Path(os.getenv("IBKR_PAPER_STATE_PATH", str(Path.home() / "Desktop" / "ibkr_paper_state.json")))
 
 def probe(module):
     try:
