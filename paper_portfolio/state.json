@@ -1,7 +1,7 @@
 {
   "version": 1,
   "initial_cash": 10000.0,
-  "cash": 3894.255225,
+  "cash": 1902.633399,
   "positions": [
     {
       "symbol": "AES",
@@ -13,15 +13,6 @@
       "signal_score": 13.2912
     },
     {
-      "symbol": "DIS",
-      "entry_date": "2026-11-19",
-      "entry_price": 121.970001,
-      "shares": 16,
-      "entry_cost": 1954.4473,
-      "signal_date": "2026-11-18",
-      "signal_score": 23.9116
-    },
-    {
       "symbol": "TGT",
       "entry_date": "2026-11-20",
       "entry_price": 170.0,
@@ -29,26 +20,27 @@
       "entry_cost": 1702.55,
       "signal_date": "2026-11-19",
       "signal_score": 12.72
-    }
-  ],
-  "pending": [
+    },
     {
       "symbol": "TSN",
+      "entry_date": "2026-11-23",
+      "entry_price": 64.419998,
+      "shares": 30,
+      "entry_cost": 1935.498845,
       "signal_date": "2026-11-20",
-      "rs55": 40.6658,
-      "volume_ratio": 1.7274,
-      "signal_close": 65.12,
-      "score": 44.1207
+      "signal_score": 44.1207
     },
     {
       "symbol": "WRB",
+      "entry_date": "2026-11-23",
+      "entry_price": 77.580002,
+      "shares": 25,
+      "entry_cost": 1942.409296,
       "signal_date": "2026-11-20",
-      "rs55": 26.16,
-      "volume_ratio": 1.2886,
-      "signal_close": 78.31,
-      "score": 28.7372
+      "signal_score": 28.7372
     }
   ],
+  "pending": [],
   "closed": [
     {
       "symbol": "HUM",
@@ -119,6 +111,21 @@
       "reason": "TIME",
       "net_pnl": -53.4215,
       "net_return_pct": -2.6793
+    },
+    {
+      "symbol": "DIS",
+      "entry_date": "2026-11-19",
+      "entry_price": 121.970001,
+      "shares": 16,
+      "entry_cost": 1954.4473,
+      "signal_date": "2026-11-18",
+      "signal_score": 23.9116,
+      "early_exit_due": true,
+      "exit_date": "2026-11-23",
+      "exit_price": 118.07,
+      "reason": "D2_LOSS2_NEXT_OPEN",
+      "net_pnl": -68.161,
+      "net_return_pct": -3.4875
     }
   ],
   "daily": [
@@ -209,7 +216,16 @@
       "positions": 3,
       "pending": 2,
       "spy_close": 689.809998
+    },
+    {
+      "date": "2026-11-23",
+      "equity": 9404.49,
+      "cash": 1902.63,
+      "positions": 4,
+      "pending": 0,
+      "spy_close": 722.289978
     }
   ],
-  "last_processed": "2026-11-20"
+  "last_processed": "2026-11-23",
+  "strategy": "V1-D2-LOSS2+B125_SPY_MOM20_POS"
 }

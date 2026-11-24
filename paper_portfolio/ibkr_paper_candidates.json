@@ -1,65 +1,8 @@
 {
   "schema_version": 1,
   "source": "sp500_top5_daily_scan",
-  "signal_session": "2026-11-20",
+  "signal_session": "2026-11-23",
   "orders_enabled": false,
-  "candidate_count": 7,
-  "candidates": [
-    {
-      "symbol": "TSN",
-      "signal_date": "2026-11-20",
-      "rs55": 40.6658,
-      "volume_ratio": 1.7274,
-      "signal_close": 65.12,
-      "score": 44.1207
-    },
-    {
-      "symbol": "WRB",
-      "signal_date": "2026-11-20",
-      "rs55": 26.16,
-      "volume_ratio": 1.2886,
-      "signal_close": 78.31,
-      "score": 28.7372
-    },
-    {
-      "symbol": "AES",
-      "signal_date": "2026-11-20",
-      "rs55": 14.9669,
-      "volume_ratio": 2.3314,
-      "signal_close": 15.02,
-      "score": 19.6296
-    },
-    {
-      "symbol": "KHC",
-      "signal_date": "2026-11-20",
-      "rs55": 13.4603,
-      "volume_ratio": 1.3377,
-      "signal_close": 25.39,
-      "score": 16.1357
-    },
-    {
-      "symbol": "DPZ",
-      "signal_date": "2026-11-20",
-      "rs55": 13.0105,
-      "volume_ratio": 1.3417,
-      "signal_close": 348.61,
-      "score": 15.694
-    },
-    {
-      "symbol": "PCG",
-      "signal_date": "2026-11-20",
-      "rs55": 10.8201,
-      "volume_ratio": 1.2257,
-      "signal_close": 13.78,
-      "score": 13.2715
-    },
-    {
-      "symbol": "GIS",
-      "signal_date": "2026-11-20",
-      "rs55": 3.7172,
-      "volume_ratio": 1.8136,
-      "signal_close": 35.74,
-      "score": 7.3444
-    }
-  ]
+  "candidate_count": 0,
+  "candidates": []
 }
