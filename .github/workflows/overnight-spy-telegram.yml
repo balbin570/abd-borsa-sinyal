@@ -1,0 +1,60 @@
+name: Overnight SPY Telegram
+
+on:
+  workflow_dispatch:
+    inputs:
+      test:
+        description: 'Sadece Telegram bağlantı testi gönder'
+        type: boolean
+        default: true
+  schedule:
+    # Açılış (SAT + sonuç) ve kapanış (AL) pencereleri; yaz/kış saati ve yarım günler dahil
+    - cron: '*/5 12-15 * * 1-5'
+    - cron: '*/5 17-20 * * 1-5'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: overnight-spy-telegram
+  cancel-in-progress: false
+
+jobs:
+  signal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install --quiet yfinance requests exchange-calendars
+      - name: Overnight sinyali
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          IS_TEST: ${{ github.event_name == 'workflow_dispatch' && inputs.test }}
+        run: |
+          if [ "$IS_TEST" = "true" ]; then
+            python scripts/overnight_spy_telegram.py --test
+          else
+            python scripts/overnight_spy_telegram.py
+          fi
+      - name: Durumu kaydet
+        if: always()
+        run: |
+          [ -d overnight_spy ] || exit 0
+          git add overnight_spy
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Overnight SPY state"
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; exit 1; }
+            git push origin HEAD:main && exit 0
+            sleep 2
+          done
+          exit 1
