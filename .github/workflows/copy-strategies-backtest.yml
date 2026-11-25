@@ -1,0 +1,32 @@
+name: Kopyalama stratejileri backtest (Pelosi / Buffett)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Bağımlılıklar
+        run: |
+          sudo apt-get install -y -qq poppler-utils >/dev/null
+          pip install --quiet yfinance pandas numpy
+          git clone --quiet https://github.com/Jakeschincariol/trader-skill.git external/trader-skill
+          git -C external/trader-skill checkout --quiet 5189e79
+          git -C external/trader-skill log -1 --format='trader-skill %h %cd'
+      - name: Backtest
+        env:
+          TRADER_SKILL: external/trader-skill
+          SEC_USER_AGENT: abd-borsa-sinyal research github-actions@users.noreply.github.com
+        run: python -m research.copy_strategies_backtest
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: copy-strategies-backtest
+          path: research/copy_strategies/report.md
+          retention-days: 30
