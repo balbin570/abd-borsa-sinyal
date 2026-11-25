@@ -1,4 +1,4 @@
-name: Giris testi: hacim + yukselis
+name: "Giris testi - hacim ve yukselis"
 on:
   workflow_dispatch:
 permissions:
