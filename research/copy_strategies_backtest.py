@@ -111,6 +111,10 @@ def pelosi_signals(years):
     df = pd.DataFrame(sigs)
     if len(df):
         df = df.drop_duplicates(["filed", "ticker"])
+        excl = [t.strip().upper() for t in os.environ.get("PELOSI_EXCLUDE", "").split(",") if t.strip()]
+        if excl:
+            df = df[~df["ticker"].isin(excl)]
+            log.append("Hariç tutulan: " + ", ".join(excl))
     return df, log
 
 
@@ -122,7 +126,7 @@ def next_bar(px, day):
 def pelosi_backtest():
     years = list(range(2019, pd.Timestamp.today().year + 1))
     sig, log = pelosi_signals(years)
-    lines = ["## 1) Pelosi kopyalama", ""]
+    lines = ["## 1) Pelosi kopyalama" + (f" (hariç: {os.environ.get('PELOSI_EXCLUDE')})" if os.environ.get("PELOSI_EXCLUDE") else ""), ""]
     if sig.empty:
         return "\n".join(lines + ["Sinyal bulunamadı.", *log]), None
     tick = sorted(set(map(yahoo, sig["ticker"]))) + ["SPY", "QQQ"]
@@ -174,7 +178,7 @@ def pelosi_backtest():
                      "SPY'ı_geçen_%": round(100 * (g["ret"] > g["spy"]).mean(), 0),
                      "fark_%": round(100 * (g["ret"] - g["spy"]).mean(), 1)})
     nd = sig["doc"].nunique()
-    lines += [f"{nd} PTR bildiriminden sinyal çıktı, okunamayan bildirim: {len(log)}. En sık hisseler: "
+    lines += [f"{nd} PTR bildiriminden sinyal çıktı, okunamayan bildirim: {sum('okunamadı' in x for x in log)}. En sık hisseler: "
               + ", ".join(f"{t} {n}" for t, n in sig["ticker"].value_counts().head(8).items()), ""]
     lines += [f"{len(sig)} alım sinyali ({sig['filed'].min()} → {sig['filed'].max()}), "
               f"{sig['ticker'].nunique()} farklı hisse. Opsiyon alımları dayanak hisse olarak sayıldı.", "",

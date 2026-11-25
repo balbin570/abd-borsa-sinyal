@@ -1,6 +1,10 @@
 name: Kopyalama stratejileri backtest (Pelosi / Buffett)
 on:
   workflow_dispatch:
+    inputs:
+      pelosi_exclude:
+        description: 'Pelosi testinde hariç tutulacak hisseler (virgülle, örn. NVDA)'
+        default: ''
 permissions:
   contents: read
 jobs:
@@ -22,6 +26,7 @@ jobs:
       - name: Backtest
         env:
           TRADER_SKILL: external/trader-skill
+          PELOSI_EXCLUDE: ${{ inputs.pelosi_exclude }}
           SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}   # 'Ad Soyad email@ornek.com' (GitHub secret)
         run: python -m research.copy_strategies_backtest
       - uses: actions/upload-artifact@v4
