@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "sp500_top5_daily_scan",
-  "signal_session": "2026-11-23",
+  "signal_session": "2026-11-24",
   "orders_enabled": false,
   "candidate_count": 0,
   "candidates": []

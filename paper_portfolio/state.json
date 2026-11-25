@@ -224,8 +224,16 @@
       "positions": 4,
       "pending": 0,
       "spy_close": 722.289978
+    },
+    {
+      "date": "2026-11-24",
+      "equity": 9516.47,
+      "cash": 1902.63,
+      "positions": 4,
+      "pending": 0,
+      "spy_close": 718.780029
     }
   ],
-  "last_processed": "2026-11-23",
+  "last_processed": "2026-11-24",
   "strategy": "V1-D2-LOSS2+B125_SPY_MOM20_POS"
 }

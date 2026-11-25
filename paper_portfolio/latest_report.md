@@ -1,10 +1,10 @@
-# S&P 500 Top 5 V1-D2-LOSS2+B125_SPY_MOM20_POS — Forward Paper Portfolio (2026-11-23)
+# S&P 500 Top 5 V1-D2-LOSS2+B125_SPY_MOM20_POS — Forward Paper Portfolio (2026-11-24)
 
 **Paper only; no orders.** This is a forward-only ledger, not a backtest.
 
 - Universe: 503; valid data: 502; failed: 1
-- Cash: $1,902.63; equity: $9,404.49; net return from inception: -5.96%
-- Change since previous recorded session: $-18.39 (-0.20%); SPY: +4.71%; drawdown: -8.63%
+- Cash: $1,902.63; equity: $9,516.47; net return from inception: -4.84%
+- Change since previous recorded session: $+111.98 (+1.19%); SPY: -0.49%; drawdown: -7.55%
 - Open positions: 4; next-session pending entries: 0; closed trades: 6
 - All qualifying signals today: 0; selection: top score = RS55 + 2 × min(volume ratio, 4)
 - Entry: RS55 > 0; Supertrend; weekly high breakout > 1.25%; volume >= 1.2; SPY MOM20 positive: False
