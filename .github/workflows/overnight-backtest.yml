@@ -15,9 +15,11 @@ jobs:
       - run: pip install --quiet yfinance pandas numpy
       - name: Backtest
         run: python -m research.overnight_backtest QQQ SPY
+      - name: Klasik overnight detay
+        run: python -m research.overnight_classic_detail QQQ SPY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: overnight-backtest
-          path: research/overnight_backtest/report.md
+          path: research/overnight_backtest/*.md
           retention-days: 30
