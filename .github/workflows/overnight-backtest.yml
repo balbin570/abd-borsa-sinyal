@@ -1,0 +1,23 @@
+name: Overnight backtest (QQQ / SPY)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install --quiet yfinance pandas numpy
+      - name: Backtest
+        run: python -m research.overnight_backtest QQQ SPY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: overnight-backtest
+          path: research/overnight_backtest/report.md
+          retention-days: 30
