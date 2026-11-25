@@ -22,7 +22,7 @@ jobs:
       - name: Backtest
         env:
           TRADER_SKILL: external/trader-skill
-          SEC_USER_AGENT: abd-borsa-sinyal research github-actions@users.noreply.github.com
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}   # 'Ad Soyad email@ornek.com' (GitHub secret)
         run: python -m research.copy_strategies_backtest
       - uses: actions/upload-artifact@v4
         if: always()

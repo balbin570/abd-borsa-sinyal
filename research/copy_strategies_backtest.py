@@ -30,9 +30,10 @@ BERKSHIRE = "1067983"
 def sh(args, timeout=180):
     r = subprocess.run([sys.executable] + args, capture_output=True, text=True, timeout=timeout,
                        env=dict(os.environ, SEC_USER_AGENT=UA))
-    if r.returncode != 0:
+    try:
+        return json.loads(r.stdout)
+    except ValueError:
         raise RuntimeError((r.stderr or r.stdout)[-400:])
-    return json.loads(r.stdout)
 
 
 # ------------------------------------------------------------------ fiyatlar
@@ -124,7 +125,7 @@ def pelosi_backtest():
     lines = ["## 1) Pelosi kopyalama", ""]
     if sig.empty:
         return "\n".join(lines + ["Sinyal bulunamadı.", *log]), None
-    tick = sorted(set(map(yahoo, sig["ticker"]))) + ["SPY"]
+    tick = sorted(set(map(yahoo, sig["ticker"]))) + ["SPY", "QQQ"]
     px = prices(tick, start="2018-06-01")
     spy = px["SPY"]
     rows, positions = [], []
@@ -172,6 +173,9 @@ def pelosi_backtest():
                      "SPY_aynı_dönem_%": round(100 * g["spy"].mean(), 1),
                      "SPY'ı_geçen_%": round(100 * (g["ret"] > g["spy"]).mean(), 0),
                      "fark_%": round(100 * (g["ret"] - g["spy"]).mean(), 1)})
+    nd = sig["doc"].nunique()
+    lines += [f"{nd} PTR bildiriminden sinyal çıktı, okunamayan bildirim: {len(log)}. En sık hisseler: "
+              + ", ".join(f"{t} {n}" for t, n in sig["ticker"].value_counts().head(8).items()), ""]
     lines += [f"{len(sig)} alım sinyali ({sig['filed'].min()} → {sig['filed'].max()}), "
               f"{sig['ticker'].nunique()} farklı hisse. Opsiyon alımları dayanak hisse olarak sayıldı.", "",
               md(summ), ""]
@@ -194,7 +198,9 @@ def pelosi_backtest():
         count.loc[w.index] += 1
     port = (contrib / count.replace(0, np.nan)).fillna(0.0)
     spy_r = spy["Close"].pct_change().reindex(days).fillna(0.0)
-    prow = [perf(port, "Pelosi kopya portföyü (6 ay tut)"), perf(spy_r, "SPY al-tut")]
+    qqq_r = px["QQQ"]["Close"].pct_change().reindex(days).fillna(0.0)
+    prow = [perf(port, "Pelosi kopya portföyü (6 ay tut)"), perf(spy_r, "SPY al-tut"),
+            perf(qqq_r, "QQQ (Nasdaq 100) al-tut")]
     exposure = round(100 * (count > 0).mean(), 0)
     lines += ["### Portföy olarak (açık pozisyonlar eşit ağırlıklı)", md(prow), "",
               f"Portföyün yatırımda olduğu gün oranı: %{exposure:.0f}. "
@@ -206,13 +212,16 @@ def pelosi_backtest():
             lines.append(f"- {x.ticker} (bildirim {x.filed}): %{100 * x.ret:+.0f}  (SPY %{100 * x.spy:+.0f})")
         lines.append("")
     if log:
-        lines += ["Notlar: " + "; ".join(log[:8]), ""]
+        lines += ["Notlar: " + "; ".join(x.replace("\n", " ")[:90] for x in log[:8]), ""]
     return "\n".join(lines), r
 
 
 # ------------------------------------------------------------------ BUFFETT
 def buffett_backtest():
     lines = ["## 2) Buffett (Berkshire 13F) kopyalama", ""]
+    if not UA:
+        return "\n".join(lines + ["Atlandı: SEC_USER_AGENT secret'ı tanımlı değil "
+                                   "(SEC, ad ve e-posta içeren bir User-Agent istiyor)."])
     fl = sh([str(TS / "trader-copycat/edgar13f.py"), "filings", BERKSHIRE, "--limit", "200", "--json"])
     filings = [f for f in fl["filings"] if f["form"] == "13F-HR"]
     filings.sort(key=lambda f: f["filed"])
